@@ -41,10 +41,11 @@ start_dev_server() {
   pkill -9 -f "next dev" 2>/dev/null || true
   pkill -9 -f "bun run dev" 2>/dev/null || true
   sleep 1
-  setsid nohup bash -c 'cd /home/z/my-project && bun run dev' </dev/null >dev.log 2>&1 &
-  disown 2>/dev/null || true
-  # Wait up to 40s for it to come up
-  for i in $(seq 1 40); do
+  # Double-fork via setsid so the process is reparented to init (PID 1) and
+  # survives the sandbox's session teardown / process reaper.
+  ( setsid bash -c 'cd /home/z/my-project && bun run dev' </dev/null >dev.log 2>&1 & )
+  # Wait up to 45s for it to come up
+  for i in $(seq 1 45); do
     if curl -s -m 2 -o /dev/null "$HEALTH_URL" 2>/dev/null; then
       log "dev server restarted and responding (after ${i}s)"
       return 0

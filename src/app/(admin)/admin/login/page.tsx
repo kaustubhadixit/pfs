@@ -4,7 +4,6 @@
 // authenticator app. The current valid code is shown below the form, clearly
 // labeled "DEV ONLY". Refreshes every 25s (TOTP rotates every 30s).
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { signIn, useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { Loader2, LockKeyhole, ShieldAlert, Sparkles } from "lucide-react";
@@ -25,7 +24,6 @@ interface DevOtpResponse {
 }
 
 export default function AdminLoginPage() {
-  const router = useRouter();
   const { data: session, status } = useSession();
   const [email, setEmail] = React.useState(ADMIN_EMAIL);
   const [password, setPassword] = React.useState("");
@@ -33,12 +31,12 @@ export default function AdminLoginPage() {
   const [submitting, setSubmitting] = React.useState(false);
   const [devOtp, setDevOtp] = React.useState<string | null>(null);
 
-  // Redirect if already authenticated.
+  // Redirect if already authenticated (hard nav so SessionProvider is fresh).
   React.useEffect(() => {
     if (status === "authenticated" && session?.user) {
-      router.replace("/admin");
+      window.location.href = "/admin";
     }
-  }, [status, session, router]);
+  }, [status, session]);
 
   // DEV ONLY: fetch the current valid TOTP for the seeded admin.
   React.useEffect(() => {
@@ -80,9 +78,13 @@ export default function AdminLoginPage() {
         toast.error("Invalid credentials or code. Please try again.");
         return;
       }
-      toast.success("Signed in");
-      router.replace("/admin");
-      router.refresh();
+      toast.success("Signed in — loading admin panel…");
+      // HARD navigation (not router.replace): signIn({redirect:false}) does NOT
+      // update the SessionProvider's cached session state, so a soft client-side
+      // navigation to /admin would see the stale "unauthenticated" status and
+      // bounce back to /admin/login. A hard navigation forces SessionProvider to
+      // freshly fetch /api/auth/session, which sees the just-set auth cookie.
+      window.location.href = "/admin";
     } catch (e) {
       console.error("login error:", e);
       toast.error("Sign-in failed. Please try again.");

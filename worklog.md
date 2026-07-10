@@ -270,3 +270,23 @@ Stage Summary:
 - All prompt requirements now fully covered. No remaining gaps.
 - scripts/keepalive.sh = the 18-min keep-alive cron job (run: `setsid nohup bash scripts/keepalive.sh &`).
 - Files changed: src/app/api/admin/patents/route.ts, src/app/(admin)/admin/patents/page.tsx, src/app/(admin)/admin/patents/[id]/page.tsx, src/components/admin/patent-inquiries-panel.tsx (new), src/components/marketplace/detail-charts.tsx, src/app/(public)/patents/[id]/page.tsx, src/components/marketplace/patent-card.tsx, scripts/keepalive.sh (new).
+
+---
+Task ID: 5 (admin login fix + webpack switch)
+Agent: Lead (admin login bugfix)
+Task: Fix "cannot go beyond login page in admin panel - shows signed in and then nothing happens, page reloads"
+
+Work Log:
+- Root cause #1 (login loop): After successful signIn({redirect:false}), the login page called router.replace("/admin") (client-side soft navigation). But signIn({redirect:false}) does NOT update the SessionProvider's cached session state. So when AdminShell rendered at /admin, useSession() returned the STALE "unauthenticated" status (from before login), causing UnauthenticatedRedirect to fire → bounce back to /admin/login. This is a classic NextAuth v4 + App Router race condition.
+- Fix #1: Changed login page to use window.location.href = "/admin" (HARD navigation) after successful signIn. A hard navigation forces SessionProvider to freshly fetch /api/auth/session, which sees the just-set auth cookie and returns "authenticated". Also applied the same fix to the "redirect if already authenticated" useEffect. Removed unused useRouter import.
+- Root cause #2 (sub-pages hanging/crashing): After the login fix, the dashboard (/admin) loaded but /admin/leads, /admin/patents, /admin/analytics hung during Turbopack compilation (the request never reached the handler — Turbopack deadlocked/OOM'd on the complex client components like leads-table.tsx 16KB, patent-form.tsx 32KB). /admin/inquiries, /admin/data-requests, /admin/emails compiled fine (simpler pages). This is the same sandbox memory constraint (4GB, no swap) that caused OOM earlier.
+- Fix #2: Switched the dev server from Turbopack (Next 16 default) to webpack (--webpack flag). Webpack compiles the same complex pages reliably without memory spikes. Updated package.json "dev" script to "next dev -p 3000 --webpack". Updated keepalive.sh to use the double-fork setsid pattern + bun run dev (which now includes --webpack).
+- Verified all 7 admin pages return 200 with webpack: /admin, /admin/leads, /admin/patents, /admin/analytics, /admin/inquiries, /admin/data-requests, /admin/emails.
+- Browser-verified: login (MFA) → hard nav → /admin dashboard renders (heading "Dashboard" + stat cards + sidebar) → navigate to /admin/leads (heading "Leads" + search + table with Priya Demo lead) → navigate to /admin/patents (heading "Patents" + "New patent" button + table with Inquiries column).
+
+Stage Summary:
+- Admin login loop FIXED (hard navigation after signIn).
+- All admin sub-pages now compile and render (webpack mode).
+- package.json dev script updated to --webpack.
+- keepalive.sh updated with double-fork setsid.
+- Lint clean. Server running in webpack mode + keep-alive daemon active.
