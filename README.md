@@ -68,35 +68,34 @@ required to run the project.
 
 ```bash
 # 1. Install dependencies
-bun install
+npm install
 
 # 2. Configure environment
 cp .env.example .env
-#   → edit .env: set NEXTAUTH_SECRET, NEXTAUTH_URL, admin credentials, email
+#   → edit .env: set NEXTAUTH_SECRET, admin credentials, email
 
 # 3. Create the database schema
-bun run db:push
+npm run db:push
 
-# 4. Seed demo data (admin user + 6 published patents + 1 sample lead)
-bunx tsx prisma/seed.ts
-#   → prints the admin email, password, MFA secret, and current valid OTP (dev)
+# 4. Seed demo data (admin user + 12 real published patents + 1 sample lead)
+npx tsx prisma/seed.ts
+#   → prints the admin email and password (MFA disabled)
 
 # 5. Start the dev server (port 3000)
-bun run dev
+npm run dev
 ```
 
 ### Admin panel access
 
 The admin panel lives at `/admin` (not linked from public navigation). It is
-protected by NextAuth + TOTP MFA and is never reachable by unauthenticated users
-(see `src/middleware.ts`).
+protected by NextAuth (server-side session check in the admin layout) and is
+never reachable by unauthenticated users.
 
 - URL: `/admin/login`
 - Default seeded credentials: `admin@patentforsale.in` / `PatentSale123!`
-- MFA: TOTP. In **development**, the login page displays the current valid
-  6-digit code (clearly labeled "DEV ONLY") so the panel is testable without a
-  real authenticator app. This helper is hard-gated on `NODE_ENV !== "production"`
-  and is removed in production — use a real TOTP authenticator app there.
+- MFA/OTP is currently **disabled** — login is email + password only. The TOTP
+  infrastructure (mfaSecret, otplib) remains in place and can be re-enabled by
+  setting `mfaEnabled: true` on the admin record.
 
 ---
 

@@ -6,13 +6,9 @@ Quick start to run PatentSale on your PC.
 
 Install these once:
 
-1. **Node.js 20+** — <https://nodejs.org> (LTS recommended)
-2. **Bun** (package manager) — <https://bun.sh>
-   - Mac/Linux: `curl -fsSL https://bun.sh/install | bash`
-   - Windows: `powershell -c "irm bun.sh/install.ps1 | iex"`
-   - (Alternatively, you can use `npm` or `pnpm` instead of `bun` — just swap `bun` for `npm`/`pnpm` in the commands below.)
-3. **VS Code** — <https://code.visualstudio.com>
-4. **Git** — <https://git-scm.com>
+1. **Node.js 20+** — <https://nodejs.org> (LTS recommended). This includes `npm`.
+2. **VS Code** — <https://code.visualstudio.com>
+3. **Git** — <https://git-scm.com>
 
 Recommended VS Code extensions:
 - ESLint
@@ -30,7 +26,7 @@ git clone https://github.com/kaustubhadixit/pfs.git
 cd pfs
 
 # 2. Install dependencies
-bun install
+npm install
 
 # 3. Create your local .env from the template
 cp .env.example .env
@@ -41,11 +37,11 @@ cp .env.example .env
 #    Then edit .env and replace NEXTAUTH_SECRET=change-me-...
 
 # 5. Create the database schema
-bun run db:push
+npm run db:push
 
-# 6. Seed demo data (admin user + 6 sample patents + 1 lead)
+# 6. Seed demo data (admin user + 12 real patents + 1 lead)
 #    This prints the admin credentials (email + password).
-bunx tsx prisma/seed.ts
+npx tsx prisma/seed.ts
 ```
 
 ---
@@ -53,7 +49,7 @@ bunx tsx prisma/seed.ts
 ## Run the app
 
 ```bash
-bun run dev
+npm run dev
 ```
 
 Open <http://localhost:3000> in your browser.
@@ -70,11 +66,11 @@ Open <http://localhost:3000> in your browser.
 
 | Command | What it does |
 |---|---|
-| `bun run dev` | Start dev server (http://localhost:3000) |
-| `bun run lint` | Run ESLint |
-| `bun run db:push` | Push schema changes to the local SQLite DB |
-| `bun run db:generate` | Regenerate Prisma Client (after schema changes) |
-| `bunx tsx prisma/seed.ts` | Re-seed demo data (idempotent) |
+| `npm run dev` | Start dev server (http://localhost:3000) — uses Turbopack |
+| `npm run lint` | Run ESLint |
+| `npm run db:push` | Push schema changes to the local SQLite DB |
+| `npm run db:generate` | Regenerate Prisma Client (after schema changes) |
+| `npx tsx prisma/seed.ts` | Re-seed demo data (idempotent) |
 
 ---
 
@@ -91,21 +87,22 @@ taskkill /PID <pid> /F
 
 **Database needs a reset?**
 ```bash
-rm db/custom.db        # delete the SQLite file
-bun run db:push        # recreate schema
-bunx tsx prisma/seed.ts  # reseed
+rm db/custom.db          # delete the SQLite file
+npm run db:push          # recreate schema
+npx tsx prisma/seed.ts   # reseed
 ```
 
 **Prisma Client out of sync?**
 ```bash
-bun run db:generate
+npm run db:generate
 ```
 
 ---
 
 ## Notes
 
-- The dev server uses **webpack** mode (`--webpack` flag) for stable compilation.
+- The dev server uses **Turbopack** (Next.js 16 default) for fast compilation.
 - The local database is SQLite (`db/custom.db`). For production, the schema is Neon-Postgres-compatible — see `ARCHITECTURE.md`.
 - `.env` is gitignored — never commit real secrets. `.env.example` is tracked as a template.
 - The admin panel is not linked from public navigation — reach it at `/admin/login`.
+- Production uses `node` (not bun) to run the standalone server — see `package.json` `start` script.
