@@ -56,7 +56,8 @@ server.log
 # Tool results (sandbox artifact)
 /tool-results/
 
-# SQLite database (local dev)
+# SQLite database (local dev) — ignore db files but keep the folder
 *.db
 *.db-journal
-db/
+db/*
+!db/.gitkeep
