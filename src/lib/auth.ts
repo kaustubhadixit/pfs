@@ -66,7 +66,7 @@ export const authOptions: NextAuthOptions = {
         otp: { label: "Authenticator Code", type: "text" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password || !credentials?.otp) {
+        if (!credentials?.email || !credentials?.password) {
           return null;
         }
         const admin = await db.adminUser.findUnique({
@@ -74,8 +74,14 @@ export const authOptions: NextAuthOptions = {
         });
         if (!admin) return null;
         if (!verifyPassword(credentials.password, admin.passwordHash)) return null;
-        if (admin.mfaEnabled && !(await verifyMfaToken(admin.mfaSecret, credentials.otp))) {
-          return null;
+        // MFA is checked only when the admin has mfaEnabled=true AND an otp is
+        // supplied. When mfaEnabled is false (the current default), login is
+        // email + password only. The OTP field/TOTP infrastructure remains so
+        // MFA can be re-enabled by flipping mfaEnabled on the admin record.
+        if (admin.mfaEnabled && credentials.otp) {
+          if (!(await verifyMfaToken(admin.mfaSecret, credentials.otp))) {
+            return null;
+          }
         }
         return {
           id: admin.id,

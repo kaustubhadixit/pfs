@@ -44,7 +44,7 @@ cp .env.example .env
 bun run db:push
 
 # 6. Seed demo data (admin user + 6 sample patents + 1 lead)
-#    This prints the admin credentials + current MFA code (dev only).
+#    This prints the admin credentials (email + password).
 bunx tsx prisma/seed.ts
 ```
 
@@ -62,7 +62,7 @@ Open <http://localhost:3000> in your browser.
 - **Admin panel:** <http://localhost:3000/admin/login>
   - Email: `admin@patentforsale.in`
   - Password: `PatentSale123!`
-  - MFA code: shown on the login page in dev (yellow "DEV ONLY" box, rotates every 30s)
+  - (MFA/OTP is currently disabled — login is email + password only)
 
 ---
 

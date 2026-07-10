@@ -444,10 +444,21 @@ async function main() {
         name: "PatentSale Admin",
         passwordHash: bcrypt.hashSync(ADMIN_PASSWORD, 10),
         mfaSecret: secret,
-        mfaEnabled: true,
+        // MFA disabled for now — login is email + password only. The TOTP
+        // infrastructure (mfaSecret, otplib) remains so MFA can be re-enabled
+        // by flipping this to true and re-adding the OTP field on the login page.
+        mfaEnabled: false,
         role: "super_admin",
       },
     });
+  } else {
+    // Ensure existing admin has MFA disabled (idempotent on re-seed).
+    if (admin.mfaEnabled) {
+      admin = await db.adminUser.update({
+        where: { id: admin.id },
+        data: { mfaEnabled: false },
+      });
+    }
   }
   const currentOtp = await generate({ secret: admin.mfaSecret });
   console.log(`  admin ready: ${admin.email}`);

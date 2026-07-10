@@ -1,35 +1,25 @@
 "use client";
-// Admin MFA login. Centered card with email + password + 6-digit OTP.
-// In dev, fetches /api/admin/dev-otp so the panel is testable without an
-// authenticator app. The current valid code is shown below the form, clearly
-// labeled "DEV ONLY". Refreshes every 25s (TOTP rotates every 30s).
+// Admin login — email + password (OTP/MFA temporarily disabled).
+//
+// MFA (TOTP) infrastructure remains in lib/auth.ts and the schema (mfaSecret,
+// mfaEnabled) so it can be re-enabled by setting mfaEnabled=true on the admin
+// and re-adding the OTP field here. For now, login is email + password only
+// to reduce friction during development.
 import * as React from "react";
 import { signIn, useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { Loader2, LockKeyhole, ShieldAlert, Sparkles } from "lucide-react";
+import { Loader2, LockKeyhole, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from "@/components/ui/input-otp";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ADMIN_EMAIL } from "@/lib/auth";
-
-interface DevOtpResponse {
-  otp?: string;
-  error?: string;
-}
 
 export default function AdminLoginPage() {
   const { data: session, status } = useSession();
   const [email, setEmail] = React.useState(ADMIN_EMAIL);
   const [password, setPassword] = React.useState("");
-  const [otp, setOtp] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
-  const [devOtp, setDevOtp] = React.useState<string | null>(null);
 
   // Redirect if already authenticated (hard nav so SessionProvider is fresh).
   React.useEffect(() => {
@@ -38,32 +28,10 @@ export default function AdminLoginPage() {
     }
   }, [status, session]);
 
-  // DEV ONLY: fetch the current valid TOTP for the seeded admin.
-  React.useEffect(() => {
-    if (process.env.NODE_ENV === "production") return;
-    let active = true;
-    async function load() {
-      try {
-        const res = await fetch("/api/admin/dev-otp");
-        if (!res.ok) return;
-        const data: DevOtpResponse = await res.json();
-        if (active && data.otp) setDevOtp(data.otp);
-      } catch {
-        /* ignore */
-      }
-    }
-    load();
-    const timer = setInterval(load, 25_000);
-    return () => {
-      active = false;
-      clearInterval(timer);
-    };
-  }, []);
-
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
-    if (!email.trim() || !password.trim() || otp.length !== 6) {
-      toast.error("Email, password, and 6-digit code are required");
+    if (!email.trim() || !password.trim()) {
+      toast.error("Email and password are required");
       return;
     }
     setSubmitting(true);
@@ -71,19 +39,20 @@ export default function AdminLoginPage() {
       const result = await signIn("credentials", {
         email: email.trim(),
         password,
-        otp,
+        // otp omitted — MFA disabled. The authorize function skips the TOTP
+        // check when the admin's mfaEnabled is false.
         redirect: false,
       });
       if (!result || result.error) {
-        toast.error("Invalid credentials or code. Please try again.");
+        toast.error("Invalid credentials. Please try again.");
         return;
       }
       toast.success("Signed in — loading admin panel…");
-      // HARD navigation (not router.replace): signIn({redirect:false}) does NOT
-      // update the SessionProvider's cached session state, so a soft client-side
+      // HARD navigation: signIn({redirect:false}) does NOT update the
+      // SessionProvider's cached session state, so a soft client-side
       // navigation to /admin would see the stale "unauthenticated" status and
-      // bounce back to /admin/login. A hard navigation forces SessionProvider to
-      // freshly fetch /api/auth/session, which sees the just-set auth cookie.
+      // bounce back to /admin/login. A hard navigation forces SessionProvider
+      // to freshly fetch /api/auth/session, which sees the just-set cookie.
       window.location.href = "/admin";
     } catch (e) {
       console.error("login error:", e);
@@ -105,7 +74,7 @@ export default function AdminLoginPage() {
               Patent<span className="text-primary">Sale</span> Admin
             </h1>
             <p className="text-sm text-muted-foreground">
-              Authorized personnel only. MFA required.
+              Authorized personnel only.
             </p>
           </div>
         </div>
@@ -117,7 +86,7 @@ export default function AdminLoginPage() {
               Sign in
             </CardTitle>
             <CardDescription>
-              Enter your admin email, password, and current authenticator code.
+              Enter your admin email and password.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -146,25 +115,6 @@ export default function AdminLoginPage() {
                   required
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="admin-otp">Authenticator code (6 digits)</Label>
-                <InputOTP
-                  id="admin-otp"
-                  maxLength={6}
-                  value={otp}
-                  onChange={(v) => setOtp(v)}
-                  autoComplete="one-time-code"
-                >
-                  <InputOTPGroup>
-                    <InputOTPSlot index={0} />
-                    <InputOTPSlot index={1} />
-                    <InputOTPSlot index={2} />
-                    <InputOTPSlot index={3} />
-                    <InputOTPSlot index={4} />
-                    <InputOTPSlot index={5} />
-                  </InputOTPGroup>
-                </InputOTP>
-              </div>
 
               <Button type="submit" disabled={submitting} className="w-full gap-2">
                 {submitting ? <Loader2 className="size-4 animate-spin" /> : <LockKeyhole className="size-4" />}
@@ -173,26 +123,6 @@ export default function AdminLoginPage() {
             </form>
           </CardContent>
         </Card>
-
-        {devOtp ? (
-          <div className="rounded-lg border border-amber-300/60 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700/40 p-4">
-            <div className="flex items-start gap-3">
-              <ShieldAlert className="size-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-              <div className="space-y-1 text-sm">
-                <p className="font-medium text-amber-900 dark:text-amber-200">
-                  DEV ONLY — current valid code
-                </p>
-                <p className="text-2xl font-mono font-bold tracking-widest text-amber-900 dark:text-amber-200">
-                  {devOtp}
-                </p>
-                <p className="text-xs text-amber-700 dark:text-amber-300">
-                  Rotates every 30 seconds. This is shown ONLY because NODE_ENV ≠ production.
-                  In production you must use a real TOTP authenticator app.
-                </p>
-              </div>
-            </div>
-          </div>
-        ) : null}
       </div>
     </div>
   );
