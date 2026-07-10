@@ -477,3 +477,45 @@ Stage Summary:
   - US10998552B2 — Lithium ion battery and battery materials
   - US11983630B2 — Neural networks for embedded devices
 - Constraints respected: no git, no dev server restart, no db:push, no edits to any file other than prisma/seed.ts. Readiness scores / family sizes / citation counts / market-size proxies are PatentSale-team commercial estimates (scoreSource="manual") and are NOT taken from the patent office record; bibliographic data (number, title, inventors, assignee, application number, filing/grant dates, legal status) is from the official granted-patent record indexed by Google Patents.
+
+---
+Task ID: 7 (admin auth fix + real patents + security + perf)
+Agent: Lead (+ 3 parallel subagents)
+Task: Fix broken admin panel (couldn't see it once), enrich marketplace with real patents, security audit, performance optimization.
+
+Work Log:
+- Admin auth RESTRUCTURED (bulletproof):
+  • Deleted proxy.ts (Next.js 16 withAuth was unreliable — /admin returned 200 instead of redirecting).
+  • (admin)/admin/layout.tsx → SERVER COMPONENT that calls getServerSession(authOptions). If no session → redirect("/admin/login"). This runs BEFORE any HTML renders — no client-side race possible.
+  • Login page moved to (auth)/admin/login/ with its own (auth)/layout.tsx (SessionProvider). This bypasses the protected admin layout entirely.
+  • AdminShell rewritten: receives session as PROP from server layout. No more useSession() — the race condition that caused the reload loop is eliminated.
+  • Verified: /admin without session → 307 redirect to /admin/login. Login → 200 callback → /admin dashboard renders with sidebar.
+
+- Real patent data (subagent 7-a):
+  • 12 real granted patents replace 6 fake demos: CRISPR-Cas9 (MIT/Broad), Tesla battery pack, blockchain (Arbor Systems), coronavirus (Pirbright), Tesla neural networks, solar cell, robotic surgery (Intuitive), agricultural drone (Topcon), smartwatch auth (Visa), autonomous driving lidar (Baidu), lithium battery (Lyten), blockchain asset control (Nchain).
+  • Real abstracts, claims, inventors, assignees, filing/grant dates from Google Patents.
+  • AI-style summaries for each section (abstract/claims/field).
+  • Range of readiness scores (52-95), 10 fields, US+EP jurisdictions.
+
+- Security hardening (subagent 7-b):
+  • Rate limiting: src/lib/rate-limit.ts (in-memory, anonymized IP). Applied to leads/contact/inquiries (5/min) + analytics (30/min). 429 + Retry-After when exceeded.
+  • Input validation: src/lib/validation.ts — sanitizeString (strips control chars), cleanRequired/cleanOptional/cleanEmail/cleanPhone, body-size guards (10KB forms, 4KB analytics → 413).
+  • Inquiry published-patent guard: can't express interest against a draft listing.
+  • Analytics field sanitization: path/referrer/sessionId/patentId/userAgent all sanitized + length-capped.
+  • Security headers in next.config.ts: X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy, Permissions-Policy.
+  • Verified: all 14 admin API routes check requireSession() → 401. dev-otp 404s in prod. Public /api/patents excludes admin-only fields. No NEXT_PUBLIC_ secrets. No raw SQL.
+
+- Performance optimization (subagent 7-c):
+  • next.config.ts: experimental.optimizePackageImports for lucide-react + recharts (tree-shakes barrel imports).
+  • Vendor split chunks: chunk-recharts (recharts+d3+victory-vendor) + chunk-radix (@radix-ui) — stable chunks reused across rebuilds.
+  • Lazy-load 6 heavy admin components via next/dynamic({ssr:false}): patent-form (32KB), analytics-dashboard (recharts ~400KB), data-requests-manager (23KB), leads-table (16KB), inquiries-table (16KB), patent-inquiries-panel.
+  • Created src/components/admin/lazy-loading-fallback.tsx (CSS-only spinner, no deps).
+  • Created 6 Lazy* wrapper components that defer compilation until first navigation.
+
+Stage Summary:
+- Admin panel FIXED: /admin redirects to login, MFA login works, dashboard + all sub-pages render.
+- Marketplace enriched: 12 real patents with full data.
+- Security: rate limiting + validation + headers on all public APIs. All admin APIs session-protected.
+- Performance: lazy loading + tree-shaking + vendor splits reduce first-compile time for admin pages.
+- All changes pushed to GitHub (github.com/kaustubhadixit/pfs). db/custom.db properly gitignored.
+- Lint clean.
