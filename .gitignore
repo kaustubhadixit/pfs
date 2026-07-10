@@ -55,3 +55,8 @@ server.log
 /skills/
 # Tool results (sandbox artifact)
 /tool-results/
+
+# SQLite database (local dev)
+*.db
+*.db-journal
+db/
