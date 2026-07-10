@@ -519,3 +519,26 @@ Stage Summary:
 - Performance: lazy loading + tree-shaking + vendor splits reduce first-compile time for admin pages.
 - All changes pushed to GitHub (github.com/kaustubhadixit/pfs). db/custom.db properly gitignored.
 - Lint clean.
+
+---
+Task ID: 8 (remove OTP + verify patents + detail page)
+Agent: Lead
+Task: Remove OTP auth, verify patents are visible, verify patent detail page on click.
+
+Work Log:
+- Patents ARE in the sandbox DB (12 real patents). The reason they're "not pushed" is that the SQLite DB file is gitignored (it contains the admin password hash + MFA secret). After cloning locally, the user must run `bun run db:push` + `bunx tsx prisma/seed.ts` to populate. Created db/.gitkeep so the db/ folder exists after clone.
+- Patent detail page: verified clicking a card navigates to /patents/[id] (full detail route — not a dialog). The detail page renders: title, jurisdiction, legal status, field, assignee, inventors, filing/grant dates, ScoreGauge (Commercial readiness), readiness inputs reference, tabs (Overview/Claims/Description/Visuals), Express interest CTA. This is the correct UX for the content volume.
+- OTP removal:
+  • Login page rewritten: removed OTP input field, dev-otp fetch, DEV ONLY panel. Now just email + password.
+  • auth.ts authorize: no longer requires `credentials.otp`. MFA check only runs when admin.mfaEnabled === true AND otp is supplied. With mfaEnabled=false, login is email+password only.
+  • seed.ts: sets mfaEnabled=false on the admin (idempotent — updates existing admin on re-seed).
+  • SETUP.md updated: admin credentials note no longer mentions MFA.
+  • MFA infrastructure (mfaSecret, otplib, verifyMfaToken, dev-otp route) all remain in place — re-enable by setting mfaEnabled=true and re-adding the OTP field.
+- Verified: login with email + password only → redirects to /admin dashboard with full sidebar. No OTP field visible.
+
+Stage Summary:
+- OTP/MFA removed (email + password login only). MFA code retained for future re-enablement.
+- db/.gitkeep committed so db/ folder exists after clone.
+- Patents confirmed visible (12 real patents in marketplace). User must run seed locally after clone.
+- Patent detail page confirmed working (full route, not dialog).
+- All changes pushed to GitHub.
