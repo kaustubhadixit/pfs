@@ -3,22 +3,43 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sendContactAcknowledgment, sendSalesNotification } from "@/lib/email";
 import { logEvent, anonymizeIp } from "@/lib/analytics";
+import {
+  rateLimit,
+  rateLimitIdentifierFromRequest,
+  tooManyRequestsResponse,
+} from "@/lib/rate-limit";
+import {
+  cleanEmail,
+  cleanOptional,
+  cleanRequired,
+  shouldRejectBodySize,
+  LIMITS,
+} from "@/lib/validation";
+
+const RATE_LIMIT = 5;
+const RATE_WINDOW_MS = 60_000;
+const MAX_BODY_BYTES = 10_000;
 
 export async function POST(req: NextRequest) {
+  if (shouldRejectBodySize(req, MAX_BODY_BYTES)) {
+    return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+  }
+
+  const identifier = `contact:${rateLimitIdentifierFromRequest(req)}`;
+  const rl = rateLimit(identifier, RATE_LIMIT, RATE_WINDOW_MS);
+  if (!rl.success) return tooManyRequestsResponse(rl.resetAt);
+
   try {
     const body = await req.json().catch(() => null);
     if (!body) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 
-    const name = String(body.name || "").trim();
-    const email = String(body.email || "").trim().toLowerCase();
-    const subject = body.subject ? String(body.subject).trim() : null;
-    const message = String(body.message || "").trim();
+    const name = cleanRequired(body.name, LIMITS.NAME);
+    const email = cleanEmail(body.email);
+    const subject = cleanOptional(body.subject, LIMITS.SUBJECT);
+    const message = cleanRequired(body.message, LIMITS.MESSAGE);
 
     if (!name || !email || !message) {
       return NextResponse.json({ error: "Name, email, and message are required" }, { status: 422 });
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return NextResponse.json({ error: "Invalid email" }, { status: 422 });
     }
 
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || req.headers.get("x-real-ip") || undefined;

@@ -1,15 +1,17 @@
 "use client";
 // AdminShell — the admin panel's authenticated shell.
 //
-// Sidebar (desktop) + Sheet (mobile) + top bar (section title, admin email,
-// theme toggle, logout). Session-guarded: unauthenticated users are redirected
-// to /admin/login. For the login route itself (`/admin/login`), the shell is
-// bypassed entirely — the layout lets the page render without auth.
+// Receives the session as a PROP from the server-side admin layout (which
+// already verified getServerSession). This means NO client-side useSession()
+// race condition — the server guarantees the user is authenticated before
+// this component ever renders. The shell is pure presentation: sidebar +
+// top bar + theme toggle + logout.
 import * as React from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
+import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
+import type { Session } from "next-auth";
 import {
   LayoutDashboard,
   Users,
@@ -23,7 +25,6 @@ import {
   Moon,
   Sun,
   Sparkles,
-  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -33,7 +34,6 @@ import {
   SheetTrigger,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
 
 interface NavItem {
   href: string;
@@ -129,39 +129,25 @@ function Brand() {
 }
 
 function UnauthenticatedRedirect() {
-  const router = useRouter();
+  // This should never render — the server layout redirects before this
+  // component loads. Kept as a defensive fallback only.
   React.useEffect(() => {
-    router.replace("/admin/login");
-  }, [router]);
+    window.location.href = "/admin/login";
+  }, []);
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
-      <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      <Sparkles className="size-6 animate-pulse text-muted-foreground" />
     </div>
   );
 }
 
-export function AdminShell({ children }: { children: React.ReactNode }) {
+export function AdminShell({ session, children }: { session: Session; children: React.ReactNode }) {
   const pathname = usePathname();
-  const { data: session, status } = useSession();
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
-  // Login page bypasses the shell entirely.
-  if (pathname === "/admin/login") {
-    return <>{children}</>;
-  }
-
-  if (status === "loading") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="size-6 animate-spin text-muted-foreground" />
-          <Skeleton className="h-4 w-32" />
-        </div>
-      </div>
-    );
-  }
-
-  if (status === "unauthenticated" || !session?.user) {
+  // Defensive fallback — should never hit because the server layout already
+  // verified the session. But if it somehow does, bounce to login.
+  if (!session?.user) {
     return <UnauthenticatedRedirect />;
   }
 

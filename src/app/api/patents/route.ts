@@ -22,6 +22,10 @@ export async function GET(req: NextRequest) {
   const pageSize = Math.min(48, Math.max(1, Number(url.searchParams.get("pageSize") || "12")));
 
   const where: Prisma.PatentWhereInput = {
+    // CRITICAL: only published listings are exposed on the public marketplace.
+    // Draft / unpublished / soft-deleted records must NEVER leak through this
+    // route. The explicit `published: true` is the primary guard; the `select`
+    // clause below is a secondary guard that excludes admin-only fields.
     published: true,
   };
 
@@ -70,6 +74,10 @@ export async function GET(req: NextRequest) {
       orderBy,
       skip: (page - 1) * pageSize,
       take: pageSize,
+      // PUBLIC FIELDS ONLY. Do NOT add `claims`, `description`, `scoreNotes`,
+      // `recordLocked`, `dataSource`, `leadId`, `lead`, `applicationNumber`,
+      // or any readiness-score input fields here without a security review —
+      // they are admin-only and must not be exposed on the marketplace API.
       select: {
         id: true,
         patentNumber: true,

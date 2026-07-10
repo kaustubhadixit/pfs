@@ -1,9 +1,15 @@
 // Admin: edit patent. Server component that fetches the patent record (plus its
-// buyer inquiries) and passes them to the client PatentForm + an inquiries panel.
+// buyer inquiries) and passes them to the client PatentForm + an inquiries
+// panel.
+//
+// Both heavy client components are loaded via the Lazy* client wrappers
+// (next/dynamic, ssr:false) so the patent-form (32KB) + inquiries-panel chunks
+// only compile on first navigation to this page. Server-fetched props are
+// passed through unchanged.
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { PatentForm } from "@/components/admin/patent-form";
-import { PatentInquiriesPanel } from "@/components/admin/patent-inquiries-panel";
+import { LazyPatentForm } from "@/components/admin/lazy-patent-form";
+import { LazyPatentInquiriesPanel } from "@/components/admin/lazy-patent-inquiries-panel";
 
 export default async function AdminPatentEditPage({
   params,
@@ -34,7 +40,7 @@ export default async function AdminPatentEditPage({
   if (!patent) notFound();
   return (
     <div className="space-y-6">
-      <PatentInquiriesPanel
+      <LazyPatentInquiriesPanel
         patentId={id}
         total={inquiryCount}
         inquiries={inquiries.map((i) => ({
@@ -42,7 +48,7 @@ export default async function AdminPatentEditPage({
           createdAt: i.createdAt.toISOString(),
         }))}
       />
-      <PatentForm patent={patent} />
+      <LazyPatentForm patent={patent} />
     </div>
   );
 }
