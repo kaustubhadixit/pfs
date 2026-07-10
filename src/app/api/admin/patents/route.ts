@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
         orderBy: { updatedAt: "desc" },
         skip: (page - 1) * pageSize,
         take: pageSize,
+        include: { _count: { select: { inquiries: true } } },
       }),
       db.patent.count({ where }),
     ]);

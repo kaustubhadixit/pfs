@@ -243,3 +243,30 @@ Stage Summary:
 - Docs complete: README.md, ARCHITECTURE.md, .env.example.
 - Admin login (dev): admin@patentforsale.in / PatentSale123! + TOTP shown on login page (DEV ONLY).
 - Dev server running on port 3000; lint clean.
+
+---
+Task ID: 4 (full-scan + fixes + cron)
+Agent: Lead (scan & cron)
+Task: Full prompt scan for missed items; fix gaps; create 18-min keep-alive cron job.
+
+Work Log:
+- Full scan of original prompt vs implementation. Found 2 definite gaps + 1 enhancement:
+  - Gap #1: "Show inquiry count/status in the admin panel per listing" — admin patents list API returned no inquiry count; list page had no Inquiries column; edit page had no inquiries panel.
+  - Gap #2: "field-of-use category charts" on detail view — DetailCharts had citation/family/readiness/life charts but no field-of-use category chart.
+  - Enhancement: "AI-generated short summaries per section (abstract, claims, field of use)" on card — card only showed abstract summary.
+- Fix #1: Added `_count: { select: { inquiries: true } }` to GET /api/admin/patents; added Inquiries column to admin patents list (with MessageSquare icon + count); created PatentInquiriesPanel component + wired it into the admin patent edit page (shows total + recent 10 inquiries with name/email/phone/status/message/budget/intended-use).
+- Fix #2: Detail page now fetches marketplace field-of-use distribution via db.patent.groupBy and passes it to DetailCharts; DetailCharts renders an interactive donut (PieChart) showing the distribution with this patent's field highlighted (primary color + ring) alongside a ranked legend with counts + percentages.
+- Enhancement: Patent card now shows compact Claims + Field AI summary one-liners below the abstract summary, so all 3 sections appear at a glance.
+- Cron job: sandbox has no crond/crontab/systemd-user-bus. Created scripts/keepalive.sh — a detached daemon that every 1080s (18 min) pings localhost:3000; if down, restarts `bun run dev`; if up, logs "ping OK". Launched via setsid+nohup+disown. Keeps Neon warm (prevents 5-min idle scale-to-zero in prod) + keeps Next.js process alive. Fixed initial bug: curl `-w '%{http_code}'` outputs "000" on connect failure, and `|| echo "000"` double-appended; removed the fallback echo so the "000" check works.
+
+Verification:
+- bun run lint: clean (0 errors).
+- Browser: marketplace cards now show "Claims:…" + "Field:…" summary lines (verified).
+- Browser: patent detail Visuals tab shows "Field-of-use distribution" chart with "this patent" highlight (verified).
+- API: GET /api/admin/patents returns `_count.inquiries` per patent (verified via session cookie).
+- Keep-alive daemon: detected dead server on first tick, restarted it, logged "ping OK" (verified).
+
+Stage Summary:
+- All prompt requirements now fully covered. No remaining gaps.
+- scripts/keepalive.sh = the 18-min keep-alive cron job (run: `setsid nohup bash scripts/keepalive.sh &`).
+- Files changed: src/app/api/admin/patents/route.ts, src/app/(admin)/admin/patents/page.tsx, src/app/(admin)/admin/patents/[id]/page.tsx, src/components/admin/patent-inquiries-panel.tsx (new), src/components/marketplace/detail-charts.tsx, src/app/(public)/patents/[id]/page.tsx, src/components/marketplace/patent-card.tsx, scripts/keepalive.sh (new).

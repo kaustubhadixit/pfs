@@ -78,23 +78,37 @@ export function PatentCard({ patent }: { patent: PatentCardItem }) {
           {patent.title}
         </h3>
 
-        {/* AI summary snippet */}
-        <div className="mt-2.5 flex-1">
+        {/* AI summary snippets — abstract (primary), plus compact claims + field lines */}
+        <div className="mt-2.5 flex-1 space-y-1.5">
           {summary ? (
-            <>
+            <div>
               <p className="line-clamp-3 text-sm leading-relaxed text-muted-foreground">
                 {hasAI ? truncate(summary, 220) : truncate(summary, 180)}
               </p>
               {hasAI ? (
-                <p className="mt-2 inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-primary/80">
+                <p className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-primary/80">
                   <Sparkles className="h-3 w-3" />
                   AI summary
                 </p>
               ) : null}
-            </>
+            </div>
           ) : (
             <p className="text-sm italic text-muted-foreground/70">No summary available.</p>
           )}
+
+          {/* Compact per-section AI summaries (claims + field) */}
+          {patent.summaryClaims ? (
+            <p className="line-clamp-1 text-xs text-muted-foreground/85">
+              <span className="font-medium text-muted-foreground">Claims:</span>{" "}
+              {truncate(patent.summaryClaims, 110)}
+            </p>
+          ) : null}
+          {patent.summaryField ? (
+            <p className="line-clamp-1 text-xs text-muted-foreground/85">
+              <span className="font-medium text-muted-foreground">Field:</span>{" "}
+              {truncate(patent.summaryField, 110)}
+            </p>
+          ) : null}
         </div>
 
         {/* Compact metrics row */}

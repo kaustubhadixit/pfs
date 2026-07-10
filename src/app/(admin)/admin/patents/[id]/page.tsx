@@ -1,8 +1,9 @@
-// Admin: edit patent. Server component that fetches the patent record and
-// passes it to the client PatentForm. 404 if not found.
+// Admin: edit patent. Server component that fetches the patent record (plus its
+// buyer inquiries) and passes them to the client PatentForm + an inquiries panel.
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { PatentForm } from "@/components/admin/patent-form";
+import { PatentInquiriesPanel } from "@/components/admin/patent-inquiries-panel";
 
 export default async function AdminPatentEditPage({
   params,
@@ -10,7 +11,38 @@ export default async function AdminPatentEditPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const patent = await db.patent.findUnique({ where: { id } });
+  const [patent, inquiries, inquiryCount] = await Promise.all([
+    db.patent.findUnique({ where: { id } }),
+    db.buyerInquiry.findMany({
+      where: { patentId: id },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        buyerName: true,
+        buyerEmail: true,
+        buyerPhone: true,
+        message: true,
+        budgetRange: true,
+        intendedUse: true,
+        status: true,
+        createdAt: true,
+      },
+    }),
+    db.buyerInquiry.count({ where: { patentId: id } }),
+  ]);
   if (!patent) notFound();
-  return <PatentForm patent={patent} />;
+  return (
+    <div className="space-y-6">
+      <PatentInquiriesPanel
+        patentId={id}
+        total={inquiryCount}
+        inquiries={inquiries.map((i) => ({
+          ...i,
+          createdAt: i.createdAt.toISOString(),
+        }))}
+      />
+      <PatentForm patent={patent} />
+    </div>
+  );
 }

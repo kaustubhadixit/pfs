@@ -8,9 +8,10 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   RadialBarChart, RadialBar, PolarAngleAxis,
   CartesianGrid, LabelList,
+  PieChart, Pie, Cell,
 } from "recharts";
 import {
-  TrendingUp, Link2, Hourglass, Scale, Target, FileText, Layers,
+  TrendingUp, Link2, Hourglass, Scale, Target, FileText, Layers, PieChart as PieIcon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -97,7 +98,13 @@ function ChartTooltip({ active, payload, label }: any) {
   );
 }
 
-export function DetailCharts({ patent }: { patent: DetailPatent }) {
+export function DetailCharts({
+  patent,
+  fieldDistribution = [],
+}: {
+  patent: DetailPatent;
+  fieldDistribution?: { field: string; count: number }[];
+}) {
   const score = patent.readinessScore ?? 0;
   const hasScore = patent.readinessScore != null;
 
@@ -308,6 +315,88 @@ export function DetailCharts({ patent }: { patent: DetailPatent }) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Field-of-use category chart — this patent's field in marketplace context */}
+      {fieldDistribution.length > 0 ? (
+        <Card className="border-border/60">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <PieIcon className="h-4 w-4 text-chart-5" />
+              Field-of-use distribution
+            </CardTitle>
+            <CardDescription>
+              How this patent's field (&ldquo;{patent.fieldOfUse || "Uncategorized"}&rdquo;) compares to the rest of the marketplace by listing count.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid items-center gap-6 lg:grid-cols-2">
+              <div className="h-56 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={fieldDistribution.map((f) => ({
+                        name: f.field,
+                        value: f.count,
+                        isThis: f.field === patent.fieldOfUse,
+                      }))}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius="55%"
+                      outerRadius="85%"
+                      paddingAngle={2}
+                      isAnimationActive
+                      animationDuration={900}
+                    >
+                      {fieldDistribution.map((f, idx) => (
+                        <Cell
+                          key={idx}
+                          fill={f.field === patent.fieldOfUse ? COLORS.primary : `var(--chart-${(idx % 4) + 1})`}
+                          fillOpacity={f.field === patent.fieldOfUse ? 1 : 0.45}
+                          stroke={f.field === patent.fieldOfUse ? "var(--foreground)" : "transparent"}
+                          strokeWidth={f.field === patent.fieldOfUse ? 2 : 0}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<ChartTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <ul className="space-y-1.5">
+                {fieldDistribution.slice(0, 7).map((f) => {
+                  const isThis = f.field === patent.fieldOfUse;
+                  const totalListings = fieldDistribution.reduce((s, x) => s + x.count, 0);
+                  const pct = totalListings > 0 ? Math.round((f.count / totalListings) * 100) : 0;
+                  return (
+                    <li
+                      key={f.field}
+                      className={cn(
+                        "flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm",
+                        isThis && "bg-primary/10 ring-1 ring-primary/30"
+                      )}
+                    >
+                      <span className="flex items-center gap-2 truncate">
+                        <span
+                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                          style={{ background: isThis ? COLORS.primary : "var(--muted-foreground)" }}
+                        />
+                        <span className={cn("truncate", isThis ? "font-semibold text-foreground" : "text-muted-foreground")}>
+                          {f.field}
+                          {isThis ? <span className="ml-1.5 text-[10px] font-medium text-primary">this patent</span> : null}
+                        </span>
+                      </span>
+                      <span className="shrink-0 tabular-nums text-xs text-muted-foreground">
+                        {f.count} ({pct}%)
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Readiness inputs reference table */}
       <Card className="border-border/60">

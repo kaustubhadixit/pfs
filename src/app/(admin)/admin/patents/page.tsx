@@ -4,7 +4,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Search, RefreshCw, Loader2 } from "lucide-react";
+import { Plus, Search, RefreshCw, Loader2, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -43,6 +43,7 @@ interface PatentRow {
   dataSource: string;
   published: boolean;
   updatedAt: string;
+  _count?: { inquiries: number };
 }
 
 interface PatentsResponse {
@@ -165,6 +166,7 @@ export default function AdminPatentsListPage() {
               <TableHead>Field</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Score</TableHead>
+              <TableHead>Inquiries</TableHead>
               <TableHead>Source</TableHead>
               <TableHead>Updated</TableHead>
             </TableRow>
@@ -173,14 +175,14 @@ export default function AdminPatentsListPage() {
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={`sk-${i}`}>
-                  {Array.from({ length: 8 }).map((__, j) => (
+                  {Array.from({ length: 9 }).map((__, j) => (
                     <TableCell key={j}><Skeleton className="h-4 w-full max-w-[120px]" /></TableCell>
                   ))}
                 </TableRow>
               ))
             ) : items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-12">
+                <TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-12">
                   No patents yet. <Link href="/admin/patents/new" className="text-primary hover:underline">Create your first listing</Link>.
                 </TableCell>
               </TableRow>
@@ -211,6 +213,16 @@ export default function AdminPatentsListPage() {
                       </span>
                     ) : (
                       <span className="text-xs text-muted-foreground">Unrated</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {(p._count?.inquiries ?? 0) > 0 ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
+                        <MessageSquare className="h-3 w-3 text-primary" />
+                        {p._count!.inquiries}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </TableCell>
                   <TableCell>

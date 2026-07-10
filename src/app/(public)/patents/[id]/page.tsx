@@ -70,6 +70,18 @@ export default async function PatentDetailPage({
 
   const inventors = parseInventors(patent);
 
+  // Fetch the marketplace field-of-use distribution so the detail visuals can
+  // show this patent's field in market context (a "field-of-use category chart"
+  // as required by the spec). Only published listings count.
+  const fieldGroups = await db.patent.groupBy({
+    by: ["fieldOfUse"],
+    where: { published: true, fieldOfUse: { not: null } },
+    _count: { _all: true },
+  });
+  const fieldDistribution = fieldGroups
+    .map((g) => ({ field: g.fieldOfUse as string, count: g._count._all }))
+    .sort((a, b) => b.count - a.count);
+
   // Build a serializable view for the client DetailCharts component.
   const detailPatent: DetailPatent = {
     id: patent.id,
@@ -321,7 +333,7 @@ export default async function PatentDetailPage({
 
             {/* Visuals */}
             <TabsContent value="visuals" className="mt-6">
-              <DetailCharts patent={detailPatent} />
+              <DetailCharts patent={detailPatent} fieldDistribution={fieldDistribution} />
             </TabsContent>
           </Tabs>
 
