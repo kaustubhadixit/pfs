@@ -752,3 +752,24 @@ Stage Summary:
   • `src/app/(admin)/admin/patents/page.tsx` — converted from "use client" to async SERVER COMPONENT: reads searchParams, fetches first page from DB directly, passes initial data + filters to <LazyPatentsList>. Old client logic moved to patents-list-client.tsx (with stage + featured columns + stage filter added).
   • `src/components/admin/patent-form.tsx` — form state extended with stage + featured; section 5 "Publishing & integrity" now leads with a Stage Select (with inline stage badge + description preview) + a Featured switch card (amber Star when on); payload includes stage + featured; post-PATCH local state re-synced from saved record.
 - Constraints respected: no git commands run; no dev server restart; no db:push; no edits to prisma/*, src/lib/*, src/app/api/* (non-admin), src/app/layout.tsx, src/app/globals.css, src/components/site/*, src/components/marketplace/*, or src/app/(public)/*. New admin API routes live under src/app/api/admin/report-requests/. Existing admin sub-pages (/admin/leads, /admin/inquiries) are preserved as-is and linked from the Lead Gen overview; /admin/lead-gen is the unified overview that links to them. The Lead Gen funnel + KPIs aggregate across all 3 lead channels (seller leads, buyer inquiries, report requests) for a true CRM pipeline view.
+
+---
+Task ID: 10 (dark blue theme + featured + stage + report CTA + lead gen tab)
+Agent: Lead (+ 3 parallel subagents)
+Task: Major upgrade — dark blue theme, featured section, stage badges/filters, lead-gen report CTA, admin lead-gen tab, backend-ify, best practices.
+
+Work Log:
+- Schema: added Patent.stage (research|prototype|pilot|commercial|market-ready|licensing), Patent.featured + featuredAt, ReportRequest model (lead-gen for full readiness report). Indexed on stage + featured. db push + generate done.
+- Theme: rewrote globals.css with dark blue palette (sapphire/royal primary, near-navy dark mode, blue-family chart colors, stage badge colors).
+- Seed: assigns stage by score (≥85 market-ready, ≥70 commercial, ≥55 pilot, else prototype). Marks top 4 patents as featured.
+- Lib: stages.ts (STAGES, stageLabel, stageBadgeClass, stageDescription). consent.ts: REPORT_CONSENT_TEXT. email.ts: sendReportRequestAcknowledgment + sendReportRequestNotification.
+- API: /api/report-requests (POST, rate-limited, DPDPA consent, persists ReportRequest, emails). /api/patents: stage + featured filters + facets + select fields. /api/admin/report-requests (GET/POST/PATCH/DELETE). /api/admin/patents: stage + featured in CRUD.
+- Subagent 10-a: Home Featured section (featured=true, fallback top-by-score). Card: stage badge + featured star. Explorer: stage filter (checkboxes) + active chips. Marketplace page: stage in searchParams + facets.
+- Subagent 10-b: Patent detail stage badge + featured badge in header. "Get Full Readiness Report" CTA (modal form, DPDPA consent, posts to /api/report-requests). Sticky mobile CTA bar. Premium copy (score breakdown, claim analysis, market sizing, commercialization pathways).
+- Subagent 10-c: Admin Lead Gen tab (/admin/lead-gen) — CRM overview with KPIs (New leads, Open inquiries, Pending reports, Conversion rate) + funnel visualization + 3-column recent activity. Report requests management (API + table + hard-delete). Patents list backend-ified (server component, DB fetch, stage column + featured star + stage filter). Patent form: stage select + featured switch.
+- Fixed: removed duplicate (admin)/admin/login/ that a subagent recreated (conflicted with (auth)/admin/login/). Fixed sanitizeString arg count in report-requests route.
+- Verified: home (dark blue + Featured section with CRISPR), marketplace (stage badges + filter), detail (stage badge + "Get full report" CTA + sticky mobile bar), admin login (email+password, no OTP), /admin/lead-gen (KPIs + funnel). All 200. Lint + tsc clean.
+
+Stage Summary:
+- Dark blue theme live. Featured section on home. Stage badges + filter on marketplace + detail + admin. Lead-gen report CTA on detail (modal + sticky mobile). Admin Lead Gen tab (CRM overview). ReportRequest model + API + admin management. Patents list backend-ified (server component). Patent form has stage + featured controls.
+- Committed locally. Push requires fresh PAT (old one was revoked per security warning).
