@@ -30,11 +30,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useLeadModal } from "@/components/site/lead-modal";
 import { PatentCard, PatentCardSkeleton, type PatentCardItem } from "./patent-card";
 import { cn } from "@/lib/utils";
+import { STAGES, stageLabel } from "@/lib/stages";
 
 export interface Facets {
   fieldOfUse: string[];
   jurisdiction: string[];
   legalStatus: string[];
+  stage: string[];
 }
 
 export interface MarketplaceFilters {
@@ -42,6 +44,7 @@ export interface MarketplaceFilters {
   fieldOfUse: string[];
   jurisdiction: string[];
   legalStatus: string[];
+  stage: string[];
   scoreMin: number;
   scoreMax: number;
   filingFrom: string;
@@ -67,6 +70,7 @@ const DEFAULT_FILTERS: MarketplaceFilters = {
   fieldOfUse: [],
   jurisdiction: [],
   legalStatus: [],
+  stage: [],
   scoreMin: 0,
   scoreMax: 100,
   filingFrom: "",
@@ -91,6 +95,7 @@ function filtersToSearchParams(f: MarketplaceFilters): URLSearchParams {
   f.fieldOfUse.forEach((v) => sp.append("fieldOfUse", v));
   f.jurisdiction.forEach((v) => sp.append("jurisdiction", v));
   f.legalStatus.forEach((v) => sp.append("legalStatus", v));
+  f.stage.forEach((v) => sp.append("stage", v));
   if (f.scoreMin > 0) sp.set("scoreMin", String(f.scoreMin));
   if (f.scoreMax < 100) sp.set("scoreMax", String(f.scoreMax));
   if (f.filingFrom) sp.set("filingFrom", f.filingFrom);
@@ -108,6 +113,7 @@ function isDefault(f: MarketplaceFilters): boolean {
     f.fieldOfUse.length === 0 &&
     f.jurisdiction.length === 0 &&
     f.legalStatus.length === 0 &&
+    f.stage.length === 0 &&
     f.scoreMin === 0 &&
     f.scoreMax === 100 &&
     !f.filingFrom && !f.filingTo && !f.grantFrom && !f.grantTo &&
@@ -125,7 +131,7 @@ function FilterPanel({
   setFilters: (updater: (prev: MarketplaceFilters) => MarketplaceFilters) => void;
   facets: Facets;
 }) {
-  const toggle = (key: "fieldOfUse" | "jurisdiction" | "legalStatus", value: string) => {
+  const toggle = (key: "fieldOfUse" | "jurisdiction" | "legalStatus" | "stage", value: string) => {
     setFilters((prev) => {
       const arr = prev[key];
       const next = arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value];
@@ -194,6 +200,23 @@ function FilterPanel({
             ))}
           </div>
         )}
+      </FilterSection>
+
+      <Separator />
+
+      {/* Stage */}
+      <FilterSection title="Stage">
+        <div className="space-y-2">
+          {STAGES.map((s) => (
+            <FilterCheckbox
+              key={s.value}
+              label={s.label}
+              checked={filters.stage.includes(s.value)}
+              onChange={() => toggle("stage", s.value)}
+              id={`stage-${s.value}`}
+            />
+          ))}
+        </div>
       </FilterSection>
 
       <Separator />
@@ -394,6 +417,7 @@ export function MarketplaceExplorer({
       fieldOfUse: sp.getAll("fieldOfUse").filter(Boolean),
       jurisdiction: sp.getAll("jurisdiction").filter(Boolean),
       legalStatus: sp.getAll("legalStatus").filter(Boolean),
+      stage: sp.getAll("stage").filter(Boolean),
       scoreMin: sp.get("scoreMin") ? Number(sp.get("scoreMin")) : 0,
       scoreMax: sp.get("scoreMax") ? Number(sp.get("scoreMax")) : 100,
       filingFrom: sp.get("filingFrom") || "",
@@ -452,6 +476,7 @@ export function MarketplaceExplorer({
     filters.fieldOfUse.length +
     filters.jurisdiction.length +
     filters.legalStatus.length +
+    filters.stage.length +
     (filters.scoreMin > 0 || filters.scoreMax < 100 ? 1 : 0) +
     (filters.grantFrom || filters.grantTo ? 1 : 0);
 
@@ -579,6 +604,20 @@ export function MarketplaceExplorer({
                   }
                   className="rounded-sm p-0.5 hover:bg-accent"
                   aria-label={`Remove ${v}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+            {filters.stage.map((v) => (
+              <Badge key={`stage-${v}`} variant="secondary" className="gap-1">
+                {stageLabel(v)}
+                <button
+                  onClick={() =>
+                    setFilters((prev) => ({ ...prev, stage: prev.stage.filter((x) => x !== v), page: 1 }))
+                  }
+                  className="rounded-sm p-0.5 hover:bg-accent"
+                  aria-label={`Remove ${stageLabel(v)} stage`}
                 >
                   <X className="h-3 w-3" />
                 </button>

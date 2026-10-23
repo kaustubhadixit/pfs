@@ -103,6 +103,14 @@ model Patent {
   marketSizeProxy  String? // small | medium | large | very-large
   litigationHistory String? // none | low | moderate | high
 
+  // Commercialization stage — signals where the patent sits in the
+  // commercialization journey. Shown as a labeled badge on cards + detail.
+  stage            String? // research | prototype | pilot | commercial | market-ready | licensing
+
+  // Featured listing — admin-curated. Shown in the home "Featured" section.
+  featured         Boolean @default(false)
+  featuredAt       DateTime?
+
   // Data provenance & integrity (Phase B coexistence)
   dataSource       String  @default("admin-manual") // admin-manual | self-serve-automated
   recordLocked     Boolean @default(false)
@@ -116,11 +124,14 @@ model Patent {
   lead             Lead?    @relation("LeadConversion", fields: [leadId], references: [id])
 
   inquiries        BuyerInquiry[]
+  reportRequests   ReportRequest[]
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   @@unique([patentNumber, jurisdiction])
   @@index([published])
+  @@index([featured])
+  @@index([stage])
   @@index([fieldOfUse])
   @@index([jurisdiction])
   @@index([legalStatus])
@@ -231,11 +242,45 @@ model EmailLog {
   to        String
   subject   String
   body      String
-  template  String? // lead_ack | sales_notification | buyer_ack | contact_ack
+  template  String? // lead_ack | sales_notification | buyer_ack | contact_ack | report_ack
   status    String   @default("logged_dev") // sent | failed | logged_dev
   error     String?
   createdAt DateTime @default(now())
 
   @@index([createdAt])
   @@index([to])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REPORT REQUESTS — "Get Full Commercial Readiness Report" lead-gen CTA on
+// patent detail pages. A visitor requests the full report; we capture their
+// contact details + the patent they're interested in, and the sales team
+// follows up. This is a lead-gen mechanism distinct from buyer inquiries
+// (which express transactional interest) and seller leads (which are patent
+// holders wanting to list). PII: name, email, phone. DPDPA hard-delete.
+// ─────────────────────────────────────────────────────────────────────────────
+model ReportRequest {
+  id            String   @id @default(cuid())
+  patentId      String
+  name          String
+  email         String
+  phone         String?
+  company       String?
+  role          String? // e.g. "IP Manager", "R&D Lead", "Investor"
+  message       String?
+  consent       Boolean  @default(false)
+  ageConfirmed  Boolean  @default(false)
+  consentTextSnapshot String?
+  status        String   @default("new") // new | contacted | report_sent | converted | archived
+  notes         String?
+  ipAddress     String? // truncated/anonymized
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  patent        Patent   @relation(fields: [patentId], references: [id], onDelete: Cascade)
+
+  @@index([patentId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([email])
 }

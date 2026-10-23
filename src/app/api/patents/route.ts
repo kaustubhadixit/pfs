@@ -11,6 +11,8 @@ export async function GET(req: NextRequest) {
   const fieldOfUse = url.searchParams.getAll("fieldOfUse").filter(Boolean);
   const jurisdiction = url.searchParams.getAll("jurisdiction").filter(Boolean);
   const legalStatus = url.searchParams.getAll("legalStatus").filter(Boolean);
+  const stages = url.searchParams.getAll("stage").filter(Boolean);
+  const featured = url.searchParams.get("featured");
   const scoreMin = url.searchParams.get("scoreMin");
   const scoreMax = url.searchParams.get("scoreMax");
   const filingFrom = url.searchParams.get("filingFrom");
@@ -44,6 +46,8 @@ export async function GET(req: NextRequest) {
   if (fieldOfUse.length) where.fieldOfUse = { in: fieldOfUse };
   if (jurisdiction.length) where.jurisdiction = { in: jurisdiction };
   if (legalStatus.length) where.legalStatus = { in: legalStatus };
+  if (stages.length) where.stage = { in: stages };
+  if (featured === "true") where.featured = true;
 
   if (scoreMin || scoreMax) {
     where.readinessScore = {
@@ -91,6 +95,8 @@ export async function GET(req: NextRequest) {
         legalStatus: true,
         readinessScore: true,
         scoreSource: true,
+        stage: true,
+        featured: true,
         summaryAbstract: true,
         summaryClaims: true,
         summaryField: true,
@@ -103,7 +109,7 @@ export async function GET(req: NextRequest) {
   ]);
 
   // Facets for filter UI
-  const [fields, jurisdictions, statuses] = await Promise.all([
+  const [fields, jurisdictions, statuses, stageFacets] = await Promise.all([
     db.patent.findMany({
       where: { published: true, fieldOfUse: { not: null } },
       distinct: ["fieldOfUse"],
@@ -119,6 +125,11 @@ export async function GET(req: NextRequest) {
       distinct: ["legalStatus"],
       select: { legalStatus: true },
     }),
+    db.patent.findMany({
+      where: { published: true, stage: { not: null } },
+      distinct: ["stage"],
+      select: { stage: true },
+    }),
   ]);
 
   return NextResponse.json({
@@ -131,6 +142,7 @@ export async function GET(req: NextRequest) {
       fieldOfUse: fields.map((f) => f.fieldOfUse).filter(Boolean) as string[],
       jurisdiction: jurisdictions.map((j) => j.jurisdiction),
       legalStatus: statuses.map((s) => s.legalStatus).filter(Boolean) as string[],
+      stage: stageFacets.map((s) => s.stage).filter(Boolean) as string[],
     },
   });
 }

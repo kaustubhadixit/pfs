@@ -2,13 +2,16 @@
 // PatentCard — the listing card shown in the marketplace grid.
 // Premium, mobile-first. Hover lift + border emphasis. AI summary snippet
 // with a Sparkles label. Compact readiness score indicator (mini gauge).
+// Stage badge near the top row (uses stageBadgeClass / stageLabel from @/lib/stages).
+// Optional `featured` prop adds a subtle blue ring + a top-right Featured star.
 import Link from "next/link";
-import { Sparkles, MessageSquare, Scale, CalendarClock, Layers } from "lucide-react";
+import { Sparkles, MessageSquare, Scale, CalendarClock, Layers, Star } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScoreGauge } from "@/components/site/score-gauge";
 import { formatDate, truncate } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { stageLabel, stageBadgeClass } from "@/lib/stages";
 
 export interface PatentCardItem {
   id: string;
@@ -23,6 +26,8 @@ export interface PatentCardItem {
   legalStatus: string | null;
   readinessScore: number | null;
   scoreSource: string;
+  stage: string | null;
+  featured: boolean | null;
   summaryAbstract: string | null;
   summaryClaims: string | null;
   summaryField: string | null;
@@ -38,16 +43,21 @@ function legalStatusVariant(status: string | null) {
   return "outline" as const;
 }
 
-export function PatentCard({ patent }: { patent: PatentCardItem }) {
+export function PatentCard({ patent, featured = false }: { patent: PatentCardItem; featured?: boolean }) {
   const summary = patent.summaryAbstract || patent.abstract || "";
   const hasAI = Boolean(patent.summaryAbstract);
   const inquiries = patent._count?.inquiries ?? 0;
+  const isFeatured = featured || patent.featured === true;
+  const showStageBadge = Boolean(patent.stage);
 
   return (
     <Link href={`/patents/${patent.id}`} className="group block h-full focus-visible:outline-none">
       <Card
         className={cn(
-          "group/card relative h-full gap-0 overflow-hidden border-border/60 p-5 py-5",
+          "group/card relative h-full gap-0 overflow-hidden border p-5 py-5",
+          isFeatured
+            ? "border-primary/40 ring-1 ring-primary/30 shadow-md shadow-primary/5"
+            : "border-border/60",
           "transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5",
           "group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2"
         )}
@@ -55,17 +65,37 @@ export function PatentCard({ patent }: { patent: PatentCardItem }) {
         {/* subtle top accent */}
         <div className="absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-gradient-to-r from-primary to-chart-2 transition-transform duration-500 group-hover/card:scale-x-100" />
 
-        {/* Top row: jurisdiction + field + inquiries */}
+        {/* Featured star (top-right) */}
+        {isFeatured ? (
+          <span className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-foreground shadow-sm">
+            <Star className="h-3 w-3" />
+            Featured
+          </span>
+        ) : null}
+
+        {/* Top row: jurisdiction + stage + field + inquiries.
+            When featured, the top-right Featured badge replaces the inquiries count. */}
         <div className="mb-3 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <Badge variant="secondary" className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
               {patent.jurisdiction}
             </Badge>
+            {showStageBadge ? (
+              <Badge
+                variant="outline"
+                className={cn(
+                  "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+                  stageBadgeClass(patent.stage)
+                )}
+              >
+                {stageLabel(patent.stage)}
+              </Badge>
+            ) : null}
             {patent.fieldOfUse ? (
               <span className="truncate text-[11px] text-muted-foreground">{patent.fieldOfUse}</span>
             ) : null}
           </div>
-          {inquiries > 0 ? (
+          {inquiries > 0 && !isFeatured ? (
             <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
               <MessageSquare className="h-3 w-3" />
               {inquiries} {inquiries === 1 ? "inquiry" : "inquiries"}

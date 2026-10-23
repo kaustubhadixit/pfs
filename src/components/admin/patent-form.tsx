@@ -25,6 +25,7 @@ import {
   Lock,
   LockOpen,
   Info,
+  Star,
 } from "lucide-react";
 import type { Patent } from "@prisma/client";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { scoreColor, scoreLabel } from "@/lib/format";
+import { STAGES, stageBadgeClass, stageLabel, type PatentStage } from "@/lib/stages";
 
 const JURISDICTIONS = ["US", "EP", "IN", "WO", "JP", "KR", "CN", "DE", "GB", "FR", "CA", "AU", "Other"];
 const LEGAL_STATUSES = [
@@ -138,6 +140,8 @@ export function PatentForm({ patent, leadId }: PatentFormProps) {
     litigationHistory: patent?.litigationHistory || "",
     published: patent?.published ?? false,
     recordLocked: patent?.recordLocked ?? false,
+    stage: (patent?.stage as PatentStage | null | undefined) || "",
+    featured: patent?.featured ?? false,
   });
 
   const [errors, setErrors] = React.useState<Record<string, string>>({});
@@ -190,6 +194,8 @@ export function PatentForm({ patent, leadId }: PatentFormProps) {
       litigationHistory: form.litigationHistory || null,
       recordLocked: form.recordLocked,
       published,
+      stage: form.stage || null,
+      featured: form.featured,
       leadId: leadId && !isEdit ? leadId : undefined,
     };
   }
@@ -231,6 +237,8 @@ export function PatentForm({ patent, leadId }: PatentFormProps) {
           ...f,
           published: saved.published ?? f.published,
           recordLocked: saved.recordLocked ?? f.recordLocked,
+          stage: (saved.stage as PatentStage | null) ?? f.stage,
+          featured: saved.featured ?? f.featured,
         }));
         router.refresh();
       }
@@ -716,9 +724,52 @@ export function PatentForm({ patent, leadId }: PatentFormProps) {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">5. Publishing &amp; integrity</CardTitle>
-              <CardDescription>Control visibility and Phase B coexistence.</CardDescription>
+              <CardDescription>Control visibility, commercialization stage, and Phase B coexistence.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="stage">Commercialization stage</Label>
+                <Select value={form.stage} onValueChange={(v) => set("stage", v)}>
+                  <SelectTrigger id="stage" className="w-full">
+                    <SelectValue placeholder="Not set" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STAGES.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {form.stage ? (
+                    <>
+                      <Badge variant="outline" className={`mr-1.5 ${stageBadgeClass(form.stage)}`}>
+                        {stageLabel(form.stage)}
+                      </Badge>
+                      {STAGES.find((s) => s.value === form.stage)?.description}
+                    </>
+                  ) : (
+                    "Where the patent sits in the commercialization journey."
+                  )}
+                </p>
+              </div>
+
+              <div className="flex items-start justify-between gap-3 rounded-lg border p-3">
+                <div>
+                  <div className="text-sm font-medium flex items-center gap-2">
+                    Featured listing
+                    {form.featured ? (
+                      <Star className="size-3.5 fill-amber-400 text-amber-500" />
+                    ) : (
+                      <Star className="size-3.5 text-muted-foreground" />
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Curated by admin. Featured listings appear in the home &quot;Featured&quot; section.
+                  </p>
+                </div>
+                <Switch checked={form.featured} onCheckedChange={(v) => set("featured", v)} />
+              </div>
+
               <div className="flex items-start justify-between gap-3 rounded-lg border p-3">
                 <div>
                   <div className="text-sm font-medium flex items-center gap-2">

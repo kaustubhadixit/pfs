@@ -483,11 +483,21 @@ async function main() {
   }
   console.log(`  retired ${DEMO_PATENT_NUMBERS_TO_RETIRE.length} demo patents (Task-1 fake data)`);
 
+  // Assign stages + featured flags based on score (high score → market-ready,
+  // mid → commercial/pilot, low → research/prototype). Mark top 4 as featured.
+  const featuredPatents = new Set(REAL_PATENTS.slice(0, 4).map((p) => p.patentNumber));
+
   for (const p of REAL_PATENTS) {
+    const score = p.readinessScore ?? 0;
+    const stage = p.stage || (score >= 85 ? "market-ready" : score >= 70 ? "commercial" : score >= 55 ? "pilot" : "prototype");
+    const featured = featuredPatents.has(p.patentNumber);
     await db.patent.upsert({
       where: { patentNumber_jurisdiction: { patentNumber: p.patentNumber, jurisdiction: p.jurisdiction } },
       update: {
         ...p,
+        stage,
+        featured,
+        featuredAt: featured ? new Date() : null,
         filingDate: p.filingDate,
         grantDate: p.grantDate,
         dataSource: "admin-manual",
@@ -498,6 +508,9 @@ async function main() {
       },
       create: {
         ...p,
+        stage,
+        featured,
+        featuredAt: featured ? new Date() : null,
         filingDate: p.filingDate,
         grantDate: p.grantDate,
         dataSource: "admin-manual",

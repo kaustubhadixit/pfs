@@ -38,6 +38,7 @@ function parseFilters(sp: URLSearchParams): MarketplaceFilters {
     fieldOfUse: sp.getAll("fieldOfUse").filter(Boolean),
     jurisdiction: sp.getAll("jurisdiction").filter(Boolean),
     legalStatus: sp.getAll("legalStatus").filter(Boolean),
+    stage: sp.getAll("stage").filter(Boolean),
     scoreMin: sp.get("scoreMin") ? Number(sp.get("scoreMin")) : 0,
     scoreMax: sp.get("scoreMax") ? Number(sp.get("scoreMax")) : 100,
     filingFrom: sp.get("filingFrom") || "",
@@ -67,6 +68,7 @@ function buildWhere(f: MarketplaceFilters): Prisma.PatentWhereInput {
   if (f.fieldOfUse.length) where.fieldOfUse = { in: f.fieldOfUse };
   if (f.jurisdiction.length) where.jurisdiction = { in: f.jurisdiction };
   if (f.legalStatus.length) where.legalStatus = { in: f.legalStatus };
+  if (f.stage.length) where.stage = { in: f.stage };
   if (f.scoreMin > 0 || f.scoreMax < 100) {
     where.readinessScore = {
       ...(f.scoreMin > 0 ? { gte: f.scoreMin } : {}),
@@ -115,7 +117,7 @@ export default async function PatentsPage({
   const page = filters.page;
   const pageSize = filters.pageSize;
 
-  const [items, total, fields, jurisdictions, statuses] = await Promise.all([
+  const [items, total, fields, jurisdictions, statuses, stageFacets] = await Promise.all([
     db.patent.findMany({
       where,
       orderBy,
@@ -134,6 +136,8 @@ export default async function PatentsPage({
         legalStatus: true,
         readinessScore: true,
         scoreSource: true,
+        stage: true,
+        featured: true,
         summaryAbstract: true,
         summaryClaims: true,
         summaryField: true,
@@ -158,12 +162,18 @@ export default async function PatentsPage({
       distinct: ["legalStatus"],
       select: { legalStatus: true },
     }),
+    db.patent.findMany({
+      where: { published: true, stage: { not: null } },
+      distinct: ["stage"],
+      select: { stage: true },
+    }),
   ]);
 
   const facets: Facets = {
     fieldOfUse: fields.map((f) => f.fieldOfUse).filter(Boolean) as string[],
     jurisdiction: jurisdictions.map((j) => j.jurisdiction),
     legalStatus: statuses.map((s) => s.legalStatus).filter(Boolean) as string[],
+    stage: stageFacets.map((s) => s.stage).filter(Boolean) as string[],
   };
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { ArrowRight, ShieldCheck, Search, Gauge, Sparkles, FileText, TrendingUp, Lock } from "lucide-react";
+import { ArrowRight, ShieldCheck, Search, Gauge, Sparkles, FileText, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,28 +8,101 @@ import { Reveal, MotionContainer, MotionItem } from "@/components/site/motion";
 import { AnimatedCounter } from "@/components/site/animated-counter";
 import { ScoreGauge } from "@/components/site/score-gauge";
 import { HomeCtaButtons } from "@/components/site/home-cta";
+import { PatentCard, type PatentCardItem } from "@/components/marketplace/patent-card";
 import { formatDate, truncate } from "@/lib/format";
 
+// Fields selected for the home-page Featured section. Mirrors the public PatentCardItem
+// shape so we can hydrate <PatentCard featured> directly. Dates are ISO-serialized
+// before being handed to the client component.
+const HOME_PATENT_SELECT = {
+  id: true,
+  patentNumber: true,
+  jurisdiction: true,
+  title: true,
+  abstract: true,
+  fieldOfUse: true,
+  assignee: true,
+  filingDate: true,
+  grantDate: true,
+  legalStatus: true,
+  readinessScore: true,
+  scoreSource: true,
+  stage: true,
+  featured: true,
+  summaryAbstract: true,
+  summaryClaims: true,
+  summaryField: true,
+  patentFamilySize: true,
+  publishedAt: true,
+} as const;
+
 async function getHomeData() {
-  const [publishedCount, fieldsCount, jurisdictionsCount, featured] = await Promise.all([
+  const [publishedCount, fieldsCount, jurisdictionsCount, featuredRaw] = await Promise.all([
     db.patent.count({ where: { published: true } }),
     db.patent.findMany({ where: { published: true, fieldOfUse: { not: null } }, distinct: ["fieldOfUse"], select: { fieldOfUse: true } }),
     db.patent.findMany({ where: { published: true }, distinct: ["jurisdiction"], select: { jurisdiction: true } }),
     db.patent.findMany({
-      where: { published: true },
+      where: { published: true, featured: true },
       orderBy: { readinessScore: "desc" },
       take: 3,
-      select: {
-        id: true, patentNumber: true, jurisdiction: true, title: true, fieldOfUse: true,
-        assignee: true, readinessScore: true, summaryAbstract: true, grantDate: true,
-      },
+      select: HOME_PATENT_SELECT,
     }),
   ]);
+
+  // Fallback: if fewer than 3 featured listings exist, top up with the
+  // highest-readiness published patents (excluding the featured ones already
+  // pulled, so we don't duplicate). Keeps the Featured section looking full.
+  let featured: typeof featuredRaw = featuredRaw;
+  if (featuredRaw.length < 3) {
+    const excludeIds = featuredRaw.map((p) => p.id);
+    const fallback = await db.patent.findMany({
+      where: {
+        published: true,
+        ...(excludeIds.length ? { id: { notIn: excludeIds } } : {}),
+      },
+      orderBy: { readinessScore: "desc" },
+      take: 3 - featuredRaw.length,
+      select: HOME_PATENT_SELECT,
+    });
+    featured = [...featuredRaw, ...fallback];
+  }
+
   return {
     publishedCount,
     fieldsCount: fieldsCount.length,
     jurisdictionsCount: jurisdictionsCount.length,
     featured,
+  };
+}
+
+// Server→client serialization: Prisma returns Date objects; client components
+// expect ISO strings (or null). Mirrors the pattern in /patents.
+function serializePatent(p: {
+  id: string;
+  patentNumber: string;
+  jurisdiction: string;
+  title: string;
+  abstract: string | null;
+  fieldOfUse: string | null;
+  assignee: string | null;
+  filingDate: Date | string | null;
+  grantDate: Date | string | null;
+  legalStatus: string | null;
+  readinessScore: number | null;
+  scoreSource: string;
+  stage: string | null;
+  featured: boolean | null;
+  summaryAbstract: string | null;
+  summaryClaims: string | null;
+  summaryField: string | null;
+  patentFamilySize: number | null;
+  publishedAt: Date | string | null;
+}): PatentCardItem {
+  return {
+    ...p,
+    filingDate: p.filingDate instanceof Date ? p.filingDate.toISOString() : p.filingDate,
+    grantDate: p.grantDate instanceof Date ? p.grantDate.toISOString() : p.grantDate,
+    publishedAt: p.publishedAt instanceof Date ? p.publishedAt.toISOString() : p.publishedAt,
   };
 }
 
@@ -254,48 +327,28 @@ export default async function Home() {
 
       {/* FEATURED LISTINGS */}
       {data.featured.length > 0 ? (
-        <section className="border-b border-border/60">
+        <section className="border-b border-border/60 bg-muted/20">
           <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-            <Reveal className="flex items-end justify-between">
+            <Reveal className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <Badge variant="outline" className="mb-4">Featured</Badge>
-                <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">High-readiness patents on the market</h2>
+                <Badge variant="outline" className="mb-4 gap-1.5">
+                  <Sparkles className="h-3 w-3 text-primary" />
+                  Featured
+                </Badge>
+                <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Featured patents</h2>
+                <p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">
+                  Hand-picked granted patents — high commercial readiness, ready for licensing or acquisition.
+                </p>
               </div>
               <Button asChild variant="ghost" className="hidden gap-1.5 sm:flex">
                 <Link href="/patents">View all <ArrowRight className="h-4 w-4" /></Link>
               </Button>
             </Reveal>
 
-            <MotionContainer className="mt-10 grid gap-6 md:grid-cols-3" stagger={0.1}>
+            <MotionContainer className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3" stagger={0.1}>
               {data.featured.map((p) => (
                 <MotionItem key={p.id}>
-                  <Link href={`/patents/${p.id}`} className="group block h-full">
-                    <Card className="h-full border-border/60 transition-all hover:border-primary/40 hover:shadow-md">
-                      <CardContent className="flex h-full flex-col p-5">
-                        <div className="flex items-center justify-between">
-                          <Badge variant="secondary" className="rounded-full text-[10px]">{p.jurisdiction}</Badge>
-                          {p.fieldOfUse ? (
-                            <span className="text-[10px] text-muted-foreground">{p.fieldOfUse}</span>
-                          ) : null}
-                        </div>
-                        <h3 className="mt-3 line-clamp-2 text-base font-semibold leading-snug group-hover:text-primary">
-                          {p.title}
-                        </h3>
-                        <p className="mt-2 line-clamp-3 flex-1 text-sm text-muted-foreground">
-                          {truncate(p.summaryAbstract, 140)}
-                        </p>
-                        <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3">
-                          <span className="text-[11px] text-muted-foreground">
-                            Granted {formatDate(p.grantDate)}
-                          </span>
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
-                            <TrendingUp className="h-3 w-3" />
-                            {p.readinessScore ?? "—"}/100
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
+                  <PatentCard patent={serializePatent(p)} featured />
                 </MotionItem>
               ))}
             </MotionContainer>

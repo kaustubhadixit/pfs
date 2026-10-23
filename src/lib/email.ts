@@ -160,3 +160,56 @@ Thank you for contacting PatentSale. We've received your message${params.subject
 https://patentforsale.in`,
   });
 }
+
+export function sendReportRequestAcknowledgment(params: {
+  name: string;
+  email: string;
+  patentTitle: string;
+}) {
+  return sendEmail({
+    to: params.email,
+    template: "report_ack",
+    subject: `Your readiness report request for "${params.patentTitle}" — PatentSale`,
+    body: `Hi ${params.name},
+
+Thank you for requesting the full commercial readiness report for "${params.patentTitle}".
+
+Our team is preparing your report and will email it to you shortly. A commercialization specialist may also reach out to discuss your specific interest and how this patent fits your objectives.
+
+This email acknowledges receipt of your request. No payment is required.
+
+— The PatentSale Team
+https://patentforsale.in`,
+  });
+}
+
+export function sendReportRequestNotification(params: {
+  name: string;
+  email: string;
+  phone?: string;
+  company?: string;
+  role?: string;
+  patentTitle: string;
+  patentNumber: string;
+  message?: string;
+}) {
+  const lines = [
+    `New report request received on PatentSale.`,
+    ``,
+    `Patent: ${params.patentTitle} (${params.patentNumber})`,
+    ``,
+    `Name: ${params.name}`,
+    `Email: ${params.email}`,
+  ];
+  if (params.phone) lines.push(`Phone: ${params.phone}`);
+  if (params.company) lines.push(`Company: ${params.company}`);
+  if (params.role) lines.push(`Role: ${params.role}`);
+  if (params.message) lines.push(``, `Message:`, params.message);
+
+  return sendEmail({
+    to: SALES_EMAIL,
+    template: "sales_notification",
+    subject: `New report request: ${params.name} — ${params.patentTitle}`,
+    body: lines.join("\n"),
+  });
+}

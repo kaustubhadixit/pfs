@@ -589,3 +589,166 @@ Stage Summary:
 - Admin bundle lighter: LeadModalProvider/framer-motion no longer loaded on admin routes.
 - 60KB dead UI code removed. keepalive.sh removed (Railway keeps services alive natively).
 - All changes pushed to GitHub main branch.
+
+---
+Task ID: 10-b
+Agent: report-cta (lead-gen)
+Task: Add a "Get Full Commercial Readiness Report" lead-gen CTA + modal form on the patent detail page. Visitors request the full report; we capture contact details and the sales team follows up. Also add a stage badge + Featured badge near the patent title.
+
+Work Log:
+- Read worklog.md and inspected existing patterns: InquiryDialog (src/components/marketplace/inquiry-dialog.tsx) + BuyerInquiryForm (src/components/marketplace/buyer-inquiry-form.tsx) for the trigger+dialog+consent pattern; ConsentNotice (src/components/site/consent-notice.tsx) for the shared DPDPA block; lib/consent.ts (REPORT_CONSENT_TEXT + AGE_DECLARATION_TEXT already defined); lib/stages.ts (stageBadgeClass + stageLabel helpers); /api/report-requests/route.ts (accepts { patentId, name, email, phone?, company?, role?, message?, consent, ageConfirmed, consentText }; 5/min rate-limit; name+email+consent+age required; patentId must be published).
+- Created `src/components/marketplace/report-request-dialog.tsx` (new client component):
+  • Exports `ReportRequestDialog` — Dialog wrapper with a configurable trigger button (triggerLabel / triggerVariant / triggerSize / triggerClassName). Follows the exact same shape as `InquiryDialog` so multiple instances on a page are independent.
+  • On open, fires `trackEvent("express_interest_opened", { patentId, kind: "report" })` — using `kind:"report"` to disambiguate from the buyer-inquiry variant in analytics. On success, fires `trackEvent("report_request_submitted", { patentId })`.
+  • Dialog header: "Get the full commercial readiness report" + description "Includes: detailed score breakdown, claim analysis, market sizing, comparable transactions, and commercialization pathways."
+  • Premium, trustworthy body: a bordered primary/5 panel listing the four report includes (score breakdown / claim analysis / market sizing & comparables / commercialization pathways) with icons.
+  • `ReportRequestForm` (internal): Name*, Email* (with EMAIL_RE), Phone (optional — only validated when provided via PHONE_RE), Company (optional), Role (optional Select: IP Manager / R&D Lead / Investor / Business Development / Other), Message (optional Textarea).
+  • Reuses `<ConsentNotice>` with consentText={REPORT_CONSENT_TEXT} ageText={AGE_DECLARATION_TEXT} idPrefix="rr" — does NOT reimplement consent.
+  • On submit: POST /api/report-requests with the full field set (including consentText snapshot). Toasts on success ("Report request received — check your email") and on error (destructive variant). Resets all fields + closes dialog on success. Loader2 spinner on the submit button while submitting.
+  • Same accessibility/autofill hints as BuyerInquiryForm (autoComplete=name/email/tel/organization, aria-invalid on errored fields).
+- Updated `src/app/(public)/patents/[id]/page.tsx` (server component):
+  • Added imports: `Star`, `TrendingUp` from lucide-react; `ReportRequestDialog`; `stageBadgeClass`, `stageLabel` from `@/lib/stages`.
+  • Header badge row: added a stage badge (using `stageBadgeClass(stage)` + `stageLabel(stage)`) right after the jurisdiction badge, and a "Featured" badge (primary variant, filled Star icon) when `patent.featured === true`. Both are conditional. The badge row now reads: jurisdiction → stage → featured → patentNumber → legalStatus → fieldOfUse.
+  • Quick-action CTA: a smaller "Get full report" outline button placed in the header area, right above the bibliographic strip. The button is wrapped with a one-line value prop ("Free — full score breakdown, claim analysis & market sizing sent to your inbox."). This makes the lead-gen CTA always visible near the top of the page.
+  • "Next steps" area: refactored the bottom CTA into a `mt-12 space-y-4` block. A separator strip with "Next steps" label, then a prominent report CTA Card (gradient from-primary/5, border-primary/40) containing: a primary-tinted "Free report" pill, an H2 "Get the full commercial readiness report", a paragraph explaining the report vs the on-page summary + the lead-gen follow-up, a 2-col list of the four report components (FileText/BarChart3/Layers/TrendingUp icons), and a primary default-size-lg ReportRequestDialog trigger button. Below it, the existing Express Interest Card (kept unchanged in body but moved into the same Next steps block) — so the two CTAs are visually grouped.
+  • Sticky mobile CTA bar: `fixed inset-x-0 bottom-0 z-40 ... lg:hidden` with a backdrop-blur background, a "Full readiness report" title + "Free. Sent to your inbox." subtitle on the left, and a compact "Get report" default-variant ReportRequestDialog trigger on the right. Hidden on lg+ screens. Added `pb-24 sm:pb-24 lg:pb-10` to the page root so the sticky bar doesn't overlap the bottom content on mobile.
+  • The page already fetches the full patent row (no select clause), so `stage` and `featured` are available without any query changes.
+- Ran `npm run lint` — clean (0 errors, 0 warnings project-wide). Targeted eslint on my two files — clean. Targeted `npx tsc --noEmit` filtered to my files — no type errors. Did not start the dev server (per constraints).
+- Did NOT touch any of the prohibited files (prisma/*, src/lib/*, src/app/api/*, layouts, shared site components, admin components, list page, patent-card, marketplace-explorer).
+
+Stage Summary:
+- Files created (1):
+  - `src/components/marketplace/report-request-dialog.tsx` — lead-gen dialog + form (client). Reuses ConsentNotice, posts to /api/report-requests, fires `express_interest_opened { kind:"report" }` on open + `report_request_submitted` on success.
+- Files edited (1):
+  - `src/app/(public)/patents/[id]/page.tsx` — added stage + Featured badges to the header, added a quick-action "Get full report" outline button in the header, refactored the bottom CTA into a "Next steps" area with a prominent report CTA Card + the existing Express Interest Card, added a sticky mobile CTA bar with another report trigger, added bottom padding to the page root to avoid mobile overlap.
+- Lead-gen funnel: a visitor can now request the full readiness report from three on-page touchpoints (header quick-action, prominent Next-steps CTA card, mobile sticky bar), each of which opens the ReportRequestDialog. The form posts to the existing rate-limited /api/report-requests endpoint; sales gets notified via the existing email helpers; the visitor gets an ack email.
+- Constraints respected: no git, no dev server restart, no db:push, no edits to shared files (lib/*, prisma/*, api/*, layout.tsx, globals.css, site/* components, admin/* components, list page, patent-card, marketplace-explorer). Only created one new component file in src/components/marketplace/ and edited the detail page.
+
+---
+Task ID: 10-a
+Agent: Sub (Featured section + stage filters)
+Task: (1) Add a Featured section to the home page that pulls `featured: true` patents (with top-by-score fallback when fewer than 3 featured exist), (2) Add a stage badge to marketplace cards + a stage filter group to the marketplace explorer, (3) Verify/enhance pagination on the marketplace. Stage + featured are end-to-end (DB → API → server fetch → client filter).
+
+Work Log:
+
+- src/components/marketplace/patent-card.tsx
+  • PatentCardItem interface extended with `stage: string | null` and `featured: boolean | null` (matches the new /api/patents select).
+  • PatentCard now accepts an optional `featured?: boolean` prop. `isFeatured` is `featured || patent.featured === true` so the visual accent applies whether the prop is passed or the DB flag is set.
+  • When `isFeatured`, the card gets a subtle accent: `border-primary/40 ring-1 ring-primary/30 shadow-md shadow-primary/5` (premium "spotlight" look on the dark-blue theme).
+  • Top-right "Featured" pill added when `isFeatured` (Star icon + label, primary background, primary-foreground text). When featured, the inquiry-count chip is hidden so the two never overlap on the same corner.
+  • Stage badge added to the top row, next to the jurisdiction badge. Uses `stageLabel(stage)` for the text and `stageBadgeClass(stage)` for the color (blue family, dark-blue darker = more mature). Hidden when `stage` is null. Wrapped in a `Badge variant="outline"` with the stage classes appended.
+  • Top row layout switched to `flex-wrap` so the new stage badge doesn't push the field-of-use text out of the card on narrow breakpoints.
+
+- src/components/marketplace/marketplace-explorer.tsx
+  • `Facets` interface extended with `stage: string[]`.
+  • `MarketplaceFilters` interface extended with `stage: string[]`.
+  • `DEFAULT_FILTERS` includes `stage: []`.
+  • `filtersToSearchParams` appends each stage as a repeatable `stage=…` param (e.g. `?stage=research&stage=commercial`). Same pattern as fieldOfUse/jurisdiction/legalStatus.
+  • `isDefault` checks `f.stage.length === 0` so the "Clear" button appears when a stage is selected.
+  • FilterPanel `toggle` widened to accept `"fieldOfUse" | "jurisdiction" | "legalStatus" | "stage"`.
+  • New "Stage" FilterSection added between Legal status and Readiness score. Iterates `STAGES` from `@/lib/stages` and renders a checkbox per stage value (`research`, `prototype`, `pilot`, `commercial`, `market-ready`, `licensing`) with the proper human label.
+  • Stage active-filter chips: when one or more stages are selected, each renders as a removable chip (using `stageLabel(v)` so "market-ready" displays as "Market Ready"). The X button removes that stage and resets page=1.
+  • URL resync effect (back/forward nav): reads `sp.getAll("stage")` into `stage: string[]`.
+  • `activeFilterCount` includes `filters.stage.length` so the mobile "Filters" button badge stays accurate.
+  • Pagination: verified the existing implementation already handles `totalPages` from the API correctly. `buildPageList()` already produces an ellipsis-aware page list (1 … N-1 N N+1 … total), and the prev/next buttons are disabled at the bounds. The marketplace page already passes `initialPage` from searchParams. No changes needed here.
+
+- src/app/(public)/patents/page.tsx
+  • `parseFilters` reads `sp.getAll("stage")` into `stage: string[]` so deep-links like `/patents?stage=commercial` hydrate the explorer with the stage pre-selected.
+  • `buildWhere` adds `where.stage = { in: f.stage }` when stages are selected.
+  • First `db.patent.findMany` (page items) select clause extended with `stage: true` and `featured: true` so the items include the new fields. The existing `serializableItems` mapping spreads the result so these pass through automatically.
+  • Facets: a new `db.patent.findMany({ where: { published: true, stage: { not: null } }, distinct: ["stage"], select: { stage: true } })` query is run in parallel. Facets now include `stage: string[]` (sorted by the distinct query, so the order is whatever Prisma returns — the FilterPanel UI always iterates `STAGES` so the displayed order is deterministic regardless of facet order).
+
+- src/app/(public)/page.tsx (home)
+  • New module-level `HOME_PATENT_SELECT` constant — full field set mirroring PatentCardItem so we can hydrate the client `<PatentCard>` directly without a second fetch.
+  • `getHomeData` now first attempts `db.patent.findMany({ where: { published: true, featured: true }, orderBy: { readinessScore: "desc" }, take: 3, select: HOME_PATENT_SELECT })`. If that returns fewer than 3 featured listings, it tops up with `db.patent.findMany({ where: { published: true, id: { notIn: excludeIds } }, orderBy: { readinessScore: "desc" }, take: 3 - featuredRaw.length, select: HOME_PATENT_SELECT })`. The fallback ensures the home page always shows a populated Featured section even before the team has flagged listings as `featured: true`.
+  • `serializePatent` helper converts Prisma Date objects to ISO strings (or null) so the result is RSC-serializable when handed to the `<PatentCard>` client component. Mirrors the pattern in `/patents/page.tsx`.
+  • Featured section rewritten:
+      - Heading changed from "High-readiness patents on the market" to "Featured patents" with a new subtitle ("Hand-picked granted patents — high commercial readiness, ready for licensing or acquisition.").
+      - Sparkles icon added to the "Featured" eyebrow badge for visual consistency with the hero.
+      - Inline card markup replaced with `<PatentCard patent={serializePatent(p)} featured />`. The `featured` prop triggers the blue-ring accent + top-right Featured pill on every card. Layout switched from `md:grid-cols-3` to `md:grid-cols-2 lg:grid-cols-3` so the taller PatentCard (with mini gauge + claims/field summaries) breathes.
+      - Heading row made responsive (`flex-col gap-4 sm:flex-row sm:items-end sm:justify-between`) so the subtitle stacks under the title on mobile.
+      - "View all" link to /patents kept on sm+; mobile-only "View all patents" outline button kept at the bottom.
+  • Framer Motion entrance preserved (`Reveal` for the heading, `MotionContainer` + `MotionItem` for the grid, stagger=0.1).
+  • The SOLUTION section's right-side preview card still uses `data.featured[0]` (now the top featured patent, or top-by-score fallback) — its readinessScore/title/summaryAbstract reads still work because all those fields remain in HOME_PATENT_SELECT.
+  • Removed the now-unused `TrendingUp` icon import (the inline card that used it is gone).
+
+Verification:
+- `npm run lint` — clean (0 errors, 0 warnings with `--max-warnings 0`).
+- `npx tsc --noEmit` — no errors in any of the modified files. (Pre-existing unrelated errors in `prisma/seed.ts`, `examples/websocket/*`, `skills/*`, `src/app/api/report-requests/route.ts` are outside this task's scope and not caused by these changes.)
+- Pagination: confirmed the existing `buildPageList` + prev/next implementation already produces ellipsis-aware page numbers bound to `totalPages` from the API; the explorer's `filters.page` state flows through `filtersToSearchParams` → `?page=N` URL sync, and back/forward nav resyncs via the searchParams effect. The server page reads `page` from searchParams and passes `initialPage` to the explorer. No fix needed.
+- Stage filter end-to-end: stage select clause is in `/api/patents` (already there from the lead's prep), in the home/server patents fetch, and in the explorer's URL sync; stage facets are returned by the API and computed server-side in `/patents/page.tsx`; the explorer's FilterPanel iterates `STAGES` (deterministic order) regardless of facet ordering.
+- Featured end-to-end: `featured: true` is filterable via `/api/patents?featured=true` (already there from the lead's prep), and the home page now fetches `featured: true` directly from the DB with a fallback. PatentCard honours both the `featured` prop and `patent.featured === true`.
+
+Stage Summary:
+- Home page Featured section now uses real `featured: true` listings (top-3 by readinessScore among featured), with a graceful fallback to top-by-score if the team hasn't flagged enough yet. Each featured card carries the blue-ring accent + "Featured" star pill via the shared PatentCard component.
+- Marketplace cards now show a stage badge (blue family, color-coded by maturity) next to the jurisdiction, and a "Featured" star pill on featured listings.
+- Marketplace explorer has a new "Stage" filter group with one checkbox per stage from the `STAGES` constant. Selections are URL-synced (`?stage=research&stage=commercial`), shown as removable chips (using `stageLabel` so "market-ready" displays as "Market Ready"), counted in the mobile filter badge, and resynced on back/forward nav.
+- Marketplace server page parses `stage` from searchParams, applies it to the `where` clause, includes it in the item `select` and the facets. Deep-links like `/patents?stage=commercial` now work end-to-end.
+- Pagination verified working: ellipsis-aware page list + prev/next buttons bound to `totalPages`. The marketplace page already passes `initialPage` from searchParams.
+- All changes confined to the allowed file set: `src/app/(public)/page.tsx`, `src/app/(public)/patents/page.tsx`, `src/components/marketplace/patent-card.tsx`, `src/components/marketplace/marketplace-explorer.tsx`. No edits to prisma/, lib/, api/, layout, globals.css, or any site/admin component.
+
+---
+Task ID: 10-c
+Agent: admin-lead-gen
+Task: Add a "Lead Gen" tab to the admin panel (unified lead-management hub consolidating seller leads, buyer inquiries, and report requests), add stage + featured columns to the admin patent list, backend-ify admin pages (server-side DB fetch instead of client-side API fetch where possible), and add stage + featured toggle to the patent form.
+
+Work Log:
+- Read worklog.md (Tasks 1, 7, 8, 9 context) + every existing admin component/page/API in scope: admin-shell.tsx, stat-card.tsx, (admin)/admin/{page,leads,inquiries,patents,patents/[id],patents/new,layout}.tsx, components/admin/{leads-table,inquiries-table,patent-form,lazy-*}.tsx, api/admin/{leads,inquiries,patents,patents/[id],inquiries/[id],leads/[id],data-requests,_session}/*. lib/{stages,format,db,auth}.ts. prisma/schema.prisma confirmed Patent has stage/featured/featuredAt and the new ReportRequest model exists (patentId, name, email, phone?, company?, role?, message?, consent, ageConfirmed, consentTextSnapshot, status, notes, ipAddress, createdAt, updatedAt; statuses: new | contacted | report_sent | converted | archived).
+
+- (1) Lead Gen sidebar nav: admin-shell.tsx NAV now has a "Lead Gen" entry between Dashboard and Leads, using lucide `Megaphone`. `sectionTitle()` short-circuits /admin/lead-gen* → "Lead Gen" so the top-bar title matches the active section.
+
+- (2) Lead Gen overview page `/admin/lead-gen/page.tsx` — SERVER COMPONENT (async function). Fetches, in parallel via Promise.all:
+  • db.lead.groupBy(by:["status"]) → seller-lead status counts.
+  • db.buyerInquiry.groupBy(by:["status"]) → buyer-inquiry status counts.
+  • db.reportRequest.groupBy(by:["status"]) → report-request status counts.
+  • db.lead.findMany({ orderBy:{createdAt:desc}, take:8 }) → recent seller leads.
+  • db.buyerInquiry.findMany({..., take:8, include:{patent}}) → recent buyer inquiries.
+  • db.reportRequest.findMany({..., take:8, include:{patent}}) → recent report requests.
+  Renders: page header with "Lead Gen" title + 3 quick-link buttons (Manage report requests / Seller leads / Buyer inquiries), 4 StatCards (New leads / Open inquiries / Pending reports / Conversion rate) using the existing StatCard component (iconName prop pattern), a 3-stage funnel visualization (Total leads captured → Contacted/engaged → Converted) implemented as pure-CSS progress bars (no chart lib dependency to keep the lead-gen page light), and a 3-column recent-activity grid (Seller leads / Buyer inquiries / Report requests) with each row showing name, contact/patent info, status badge (STATUS_TONE map covering new/contacted/converted/closed/archived/report_sent), relative time, and a "View all" link to the corresponding sub-page. Funnel aggregates across all 3 lead channels. Conversion rate = (converted leads + converted report requests) / total across all 3 channels.
+
+- (3) Report-requests admin API:
+  • `src/app/api/admin/report-requests/route.ts` — GET (list with filters: status, q; q searches name/email/phone/company/role/message and patent.title/patentNumber; pagination page/pageSize) + POST (admin manual create — requires patentId+name+email; validates patent exists; persists phone?/company?/role?/message?/consent/ageConfirmed + a default consentTextSnapshot for offline capture; defaults status to "new").
+  • `src/app/api/admin/report-requests/[id]/route.ts` — PATCH (update status to any of new|contacted|report_sent|converted|archived; update notes) + DELETE (HARD-DELETE PII = DPDPA erasure; cascade runs the other way so the patent is preserved). Both session-guarded via `requireSession()`.
+
+- (4) Report-requests management page + client table:
+  • `src/components/admin/report-requests-table.tsx` — client table mirroring the existing leads-table + inquiries-table patterns: search input (debounced 300ms), status filter dropdown (all/new/contacted/report_sent/converted/archived), refresh button, shadcn Table with columns Requester (name + company·role), Contact (mailto + tel), Patent (link to admin patent edit), Message (truncated), Status (badge with STATUS_TONE — report_sent gets amber tone), Created (relative time), row-action dropdown (View details / View patent / Mark contacted / Mark report sent / Mark converted / Archive / Hard-delete PII), AlertDialog for delete confirmation, Dialog for read-only "details" view showing name/status/email/phone/company/role/patent link/message/notes/created date. Hard-delete toast = "Report request hard-deleted (DPDPA erasure)".
+  • `src/components/admin/lazy-report-requests-table.tsx` — Lazy wrapper (next/dynamic ssr:false + LazyLoadingFallback) consistent with the other Lazy* wrappers.
+  • `src/app/(admin)/admin/lead-gen/report-requests/page.tsx` — server shell that renders <LazyReportRequestsTable />.
+
+- (5 + 6) Stage + featured in patents API + form:
+  • `src/app/api/admin/patents/route.ts` GET: added `stage` query-param filter (exact match) + `featured` query-param filter ("true"/"false"). Response already includes stage/featured/featuredAt since findMany has no `select` (only `include: { _count: { select: { inquiries: true } } }`).
+  • `src/app/api/admin/patents/route.ts` POST: accepts `stage` (string, trimmed or null) + `featured` (boolean). Sets `featuredAt: new Date()` when featured is toggled on at create time; `null` otherwise.
+  • `src/app/api/admin/patents/[id]/route.ts` PATCH: accepts `stage` (string → trim or null) + `featured` (boolean). When featured is toggled ON and existing.featuredAt is null, sets featuredAt = new Date(); when toggled OFF, clears featuredAt = null (so re-featuring later stamps a fresh timestamp).
+  • `src/components/admin/patent-form.tsx`: form state extended with `stage` (PatentStage | "") + `featured` (boolean), initialized from patent prop on edit. buildPayload now includes `stage: form.stage || null` + `featured: form.featured`. After a successful PATCH, local state is re-synced from the saved record (saved.stage + saved.featured). Added a Star icon import from lucide. Section "5. Publishing & integrity" now leads with a Stage Select (options from STAGES, with the stage description shown below the dropdown when a stage is chosen — uses stageBadgeClass + stageLabel for the inline badge preview) followed by a Featured switch card (filled amber star when on, muted star when off, with the copy "Curated by admin. Featured listings appear in the home 'Featured' section."). The existing Published + Record locked cards remain unchanged. CardDescription updated to "Control visibility, commercialization stage, and Phase B coexistence."
+
+- (7) Backend-ify admin patents list:
+  • Converted `src/app/(admin)/admin/patents/page.tsx` from a client component to an async SERVER COMPONENT. Reads `searchParams` (q, published, jurisdiction, stage, page), builds a Prisma where-clause (with the same OR search across title/patentNumber/abstract/assignee/fieldOfUse that the API uses), fetches the first PAGE_SIZE=25 rows directly via `db.patent.findMany({ where, orderBy:{updatedAt:desc}, skip, take, include:{_count:{select:{inquiries:true}}} })` + `db.patent.count({where})` in parallel, serializes Date → ISO string, and passes the projected `PatentRow[]` + total + page + pageSize + initialFilters to <LazyPatentsList>.
+  • New `src/components/admin/patents-list-client.tsx` — client component receiving initialItems/initialTotal/initialPage/initialPageSize/initialFilters as props (so first paint is server-rendered, no client-side API round-trip). Holds local state for q/published/jurisdiction/stage/page initialized from those props. A `firstRef` guard skips the very first effect-run so we don't refetch on mount. On subsequent filter/search/page changes, refetches from `/api/admin/patents?...` (debounced 300ms for the search input). Adds a Stage column (badge using stageBadgeClass + stageLabel, or "—" when null), a Featured column (filled amber Star icon when featured, "—" otherwise), and a Stage filter dropdown (All stages + STAGES options). All existing columns (Title / Patent # / Jurisdiction / Field / Status / Score / Inquiries / Source / Updated) preserved; colSpan for empty state bumped from 9 → 11 to match the new column count.
+  • New `src/components/admin/lazy-patents-list.tsx` — Lazy wrapper (next/dynamic ssr:false + LazyLoadingFallback) consistent with the other Lazy* admin wrappers. Re-exports `PatentRow` type so the server page can name the prop type without a runtime import of the heavy client component (only the type is imported, erased at compile time).
+
+- Design adherence: Lead Gen page uses the dark-blue theme via the existing StatCard component (iconName prop, accent prop). Status badges use the existing STATUS_TONE map pattern (emerald=new, sky=contacted, violet=converted, amber=report_sent, zinc=closed/archived). Funnel bars are pure CSS (no Recharts dependency, keeps the page light + fast). The CRM dashboard layout is dense but clean: 4 KPI cards on top → funnel card → 3-column recent-activity grid.
+
+Verification:
+- `npm run lint` — clean (exit 0, 0 errors, 0 warnings).
+- `npx tsc --noEmit` — clean for all files in scope. Two pre-existing errors remain, both OUT OF SCOPE per the task constraints:
+  • `prisma/seed.ts(492,21)`: the seed's REAL_PATENTS array doesn't set `stage` (the schema was extended to add stage in a prior task; seed hasn't been updated). Cannot edit prisma/* per constraints.
+  • `src/app/api/report-requests/route.ts(65,102)`: the PUBLIC report-requests POST route calls `sanitizeString(body.consentText, 2000)` with 2 args but `sanitizeString` takes 1. Cannot edit src/app/api/* (non-admin) per constraints.
+  Both pre-existed before this task's edits; neither was introduced or touched here.
+
+Stage Summary:
+- Files created (8):
+  • `src/app/(admin)/admin/lead-gen/page.tsx` — Lead Gen overview server component (CRM dashboard with KPIs, funnel, 3-column recent activity).
+  • `src/app/(admin)/admin/lead-gen/report-requests/page.tsx` — server shell for report-requests management.
+  • `src/app/api/admin/report-requests/route.ts` — GET (list, filtered) + POST (admin manual create).
+  • `src/app/api/admin/report-requests/[id]/route.ts` — PATCH (status/notes) + DELETE (hard-delete PII).
+  • `src/components/admin/report-requests-table.tsx` — client table with search/filter/pagination/row-actions/hard-delete.
+  • `src/components/admin/lazy-report-requests-table.tsx` — Lazy wrapper.
+  • `src/components/admin/patents-list-client.tsx` — client component for the backend-ified patents list (initial data via props, refetch on filter changes).
+  • `src/components/admin/lazy-patents-list.tsx` — Lazy wrapper (re-exports PatentRow type).
+- Files edited (4):
+  • `src/components/admin/admin-shell.tsx` — added "Lead Gen" nav item (Megaphone icon) between Dashboard and Leads; sectionTitle short-circuits /admin/lead-gen* → "Lead Gen".
+  • `src/app/api/admin/patents/route.ts` — GET: stage + featured query-param filters. POST: accepts + persists stage + featured (with featuredAt).
+  • `src/app/api/admin/patents/[id]/route.ts` — PATCH: accepts + persists stage + featured; featuredAt stamped when toggled on (only if previously null), cleared when toggled off.
+  • `src/app/(admin)/admin/patents/page.tsx` — converted from "use client" to async SERVER COMPONENT: reads searchParams, fetches first page from DB directly, passes initial data + filters to <LazyPatentsList>. Old client logic moved to patents-list-client.tsx (with stage + featured columns + stage filter added).
+  • `src/components/admin/patent-form.tsx` — form state extended with stage + featured; section 5 "Publishing & integrity" now leads with a Stage Select (with inline stage badge + description preview) + a Featured switch card (amber Star when on); payload includes stage + featured; post-PATCH local state re-synced from saved record.
+- Constraints respected: no git commands run; no dev server restart; no db:push; no edits to prisma/*, src/lib/*, src/app/api/* (non-admin), src/app/layout.tsx, src/app/globals.css, src/components/site/*, src/components/marketplace/*, or src/app/(public)/*. New admin API routes live under src/app/api/admin/report-requests/. Existing admin sub-pages (/admin/leads, /admin/inquiries) are preserved as-is and linked from the Lead Gen overview; /admin/lead-gen is the unified overview that links to them. The Lead Gen funnel + KPIs aggregate across all 3 lead channels (seller leads, buyer inquiries, report requests) for a true CRM pipeline view.

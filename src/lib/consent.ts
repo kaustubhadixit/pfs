@@ -11,6 +11,8 @@ export const LEAD_CONSENT_TEXT = `I consent to PatentSale collecting my name, em
 
 export const BUYER_CONSENT_TEXT = `I consent to PatentSale collecting my name, email, phone number, and details of my interest for the purpose of enabling our sales team to facilitate an introduction regarding this patent. I have read and agree to the Privacy Policy. I understand I may withdraw consent or request access, correction, or erasure of my data at any time via the Grievance Officer listed in the Privacy Policy.`;
 
+export const REPORT_CONSENT_TEXT = `I consent to PatentSale collecting my name, email, phone, company, and role for the purpose of sending me the full commercial readiness report for this patent and enabling our sales team to follow up. I have read and agree to the Privacy Policy. I understand I may withdraw consent or request access, correction, or erasure of my data at any time via the Grievance Officer listed in the Privacy Policy.`;
+
 export const AGE_DECLARATION_TEXT = `I confirm I am 18 years of age or older.`;
 
 // DPDPA Grievance Officer — must be a named contact distinct from general Contact Us.

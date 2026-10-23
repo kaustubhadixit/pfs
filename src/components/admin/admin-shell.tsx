@@ -25,6 +25,7 @@ import {
   Moon,
   Sun,
   Sparkles,
+  Megaphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/lead-gen", label: "Lead Gen", icon: Megaphone },
   { href: "/admin/leads", label: "Leads", icon: Users },
   { href: "/admin/patents", label: "Patents", icon: FileText },
   { href: "/admin/inquiries", label: "Inquiries", icon: MessageSquare },
@@ -53,6 +55,7 @@ const NAV: NavItem[] = [
 
 function sectionTitle(pathname: string): string {
   if (pathname === "/admin") return "Dashboard";
+  if (pathname.startsWith("/admin/lead-gen")) return "Lead Gen";
   for (const item of NAV) {
     if (item.href !== "/admin" && pathname.startsWith(item.href)) return item.label;
   }

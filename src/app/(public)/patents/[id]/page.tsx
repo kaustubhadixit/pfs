@@ -9,7 +9,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import {
   ChevronRight, Sparkles, Scale, Calendar, CalendarClock, Users, Building2,
-  FileText, ClipboardList, BarChart3, ArrowLeft, Layers,
+  FileText, ClipboardList, BarChart3, ArrowLeft, Layers, Star, TrendingUp,
 } from "lucide-react";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
@@ -24,9 +24,11 @@ import {
 import { Reveal } from "@/components/site/motion";
 import { ScoreGauge } from "@/components/site/score-gauge";
 import { formatDate, parseInventors, scoreColor, scoreLabel, truncate } from "@/lib/format";
+import { stageBadgeClass, stageLabel } from "@/lib/stages";
 import { ClaimStructure } from "@/components/marketplace/claim-structure";
 import { DetailCharts, type DetailPatent } from "@/components/marketplace/detail-charts";
 import { InquiryDialog } from "@/components/marketplace/inquiry-dialog";
+import { ReportRequestDialog } from "@/components/marketplace/report-request-dialog";
 import { ListingViewTracker } from "@/components/marketplace/listing-view-tracker";
 
 export async function generateMetadata({
@@ -101,7 +103,7 @@ export default async function PatentDetailPage({
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+    <div className="mx-auto max-w-7xl px-4 py-8 pb-24 sm:px-6 sm:py-10 sm:pb-24 lg:px-8 lg:pb-10">
       <ListingViewTracker patentId={patent.id} />
 
       {/* Breadcrumb */}
@@ -145,6 +147,17 @@ export default async function PatentDetailPage({
               <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide">
                 {patent.jurisdiction}
               </Badge>
+              {patent.stage ? (
+                <Badge className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${stageBadgeClass(patent.stage)}`}>
+                  {stageLabel(patent.stage)}
+                </Badge>
+              ) : null}
+              {patent.featured ? (
+                <Badge variant="default" className="gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold">
+                  <Star className="h-3 w-3 fill-current" />
+                  Featured
+                </Badge>
+              ) : null}
               <span className="font-mono text-sm text-muted-foreground">{patent.patentNumber}</span>
               {patent.legalStatus ? (
                 <Badge variant="outline" className="capitalize">{patent.legalStatus}</Badge>
@@ -162,6 +175,20 @@ export default async function PatentDetailPage({
                 Assigned to <span className="font-medium text-foreground">{patent.assignee}</span>
               </p>
             ) : null}
+
+            {/* Quick action — request the full report (always visible near the top) */}
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <ReportRequestDialog
+                patentId={patent.id}
+                patentTitle={patent.title}
+                triggerLabel="Get full report"
+                triggerVariant="outline"
+                triggerSize="default"
+              />
+              <span className="text-xs text-muted-foreground">
+                Free — full score breakdown, claim analysis & market sizing sent to your inbox.
+              </span>
+            </div>
 
             {/* Bibliographic strip */}
             <div className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
@@ -337,9 +364,58 @@ export default async function PatentDetailPage({
             </TabsContent>
           </Tabs>
 
-          {/* Express interest CTA */}
-          <div className="mt-12">
-            <Card className="overflow-hidden border-primary/30">
+          {/* Next steps — Express interest + Get full report (lead-gen conversion) */}
+          <div className="mt-12 space-y-4">
+            <div className="flex items-center gap-2">
+              <Separator className="flex-1" />
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Next steps</span>
+              <Separator className="flex-1" />
+            </div>
+
+            {/* Prominent report CTA — lead-gen conversion point */}
+            <Card className="overflow-hidden border-primary/40 bg-gradient-to-br from-primary/5 via-background to-background">
+              <CardContent className="p-6 sm:p-7">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="max-w-xl">
+                    <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                      <Sparkles className="h-3 w-3" />
+                      Free report
+                    </div>
+                    <h2 className="mt-3 text-xl font-bold tracking-tight sm:text-2xl">
+                      Get the full commercial readiness report
+                    </h2>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      The on-page score is a summary. The full report breaks it down — detailed score
+                      breakdown, claim analysis, market sizing with comparable transactions, and
+                      commercialization pathways. We capture your details and our sales team follows
+                      up with the complete PDF.
+                    </p>
+                    <ul className="mt-4 grid gap-1.5 text-sm text-muted-foreground sm:grid-cols-2">
+                      <li className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5 text-primary" /> Score breakdown & claim analysis</li>
+                      <li className="flex items-center gap-1.5"><BarChart3 className="h-3.5 w-3.5 text-primary" /> Market sizing & comparables</li>
+                      <li className="flex items-center gap-1.5"><Layers className="h-3.5 w-3.5 text-primary" /> Family & litigation review</li>
+                      <li className="flex items-center gap-1.5"><TrendingUp className="h-3.5 w-3.5 text-primary" /> Commercialization pathways</li>
+                    </ul>
+                  </div>
+                  <div className="shrink-0 lg:w-auto">
+                    <ReportRequestDialog
+                      patentId={patent.id}
+                      patentTitle={patent.title}
+                      triggerLabel="Get full report"
+                      triggerVariant="default"
+                      triggerSize="lg"
+                      triggerClassName="w-full lg:w-auto"
+                    />
+                    <p className="mt-2 text-center text-[11px] text-muted-foreground">
+                      No payment required. Response within 2 business days.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Express interest CTA */}
+            <Card className="overflow-hidden border-border/60">
               <CardContent className="flex flex-col items-start justify-between gap-4 p-6 sm:flex-row sm:items-center">
                 <div>
                   <h2 className="text-lg font-semibold">Interested in this patent?</h2>
@@ -357,6 +433,24 @@ export default async function PatentDetailPage({
               </CardContent>
             </Card>
           </div>
+        </div>
+      </div>
+
+      {/* Sticky mobile CTA bar — always visible on small screens */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:hidden">
+        <div className="flex items-center gap-3 p-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">Full readiness report</p>
+            <p className="truncate text-[11px] text-muted-foreground">Free. Sent to your inbox.</p>
+          </div>
+          <ReportRequestDialog
+            patentId={patent.id}
+            patentTitle={patent.title}
+            triggerLabel="Get report"
+            triggerVariant="default"
+            triggerSize="default"
+            triggerClassName="shrink-0"
+          />
         </div>
       </div>
     </div>

@@ -73,6 +73,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data.published = body.published;
       if (body.published && !existing.publishedAt) data.publishedAt = new Date();
     }
+    // Stage + featured (admin-curated commercialization metadata).
+    if (typeof body.stage === "string") data.stage = body.stage.trim() || null;
+    if (typeof body.featured === "boolean") {
+      data.featured = body.featured;
+      // Set featuredAt when toggled on; clear when toggled off.
+      if (body.featured && !existing.featuredAt) data.featuredAt = new Date();
+      if (!body.featured) data.featuredAt = null;
+    }
     // dataSource stays admin-manual for admin edits; scoreSource stays manual in Phase A.
 
     try {

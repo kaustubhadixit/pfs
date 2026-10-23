@@ -18,11 +18,18 @@ export async function GET(req: NextRequest) {
     const page = Math.max(1, Number(url.searchParams.get("page") || "1"));
     const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get("pageSize") || "25")));
 
+    const stage = url.searchParams.get("stage")?.trim() || ""; // research | prototype | pilot | commercial | market-ready | licensing
+
     const where: Prisma.PatentWhereInput = {};
     if (published === "true") where.published = true;
     if (published === "false") where.published = false;
     if (jurisdiction.length) where.jurisdiction = { in: jurisdiction };
     if (fieldOfUse) where.fieldOfUse = { contains: fieldOfUse };
+    if (stage) where.stage = stage;
+    // featured filter: "true" restricts to featured only; "false" to non-featured.
+    const featured = url.searchParams.get("featured");
+    if (featured === "true") where.featured = true;
+    if (featured === "false") where.featured = false;
     if (q) {
       where.OR = [
         { title: { contains: q } },
@@ -113,6 +120,9 @@ export async function POST(req: NextRequest) {
       recordLocked: Boolean(body.recordLocked),
       published,
       publishedAt: published ? new Date() : null,
+      stage: typeof body.stage === "string" && body.stage.trim() ? body.stage.trim() : null,
+      featured: Boolean(body.featured),
+      featuredAt: Boolean(body.featured) ? new Date() : null,
     };
 
     // Optional lead linkage on create (e.g. "create listing from this lead").
