@@ -155,12 +155,6 @@ export function PatentCard({ patent, featured = false }: { patent: PatentCardIte
             <CalendarClock className="h-3 w-3" />
             Granted {formatDate(patent.grantDate)}
           </span>
-          {patent.patentFamilySize ? (
-            <span className="inline-flex items-center gap-1">
-              <Layers className="h-3 w-3" />
-              Family of {patent.patentFamilySize}
-            </span>
-          ) : null}
         </div>
 
         {/* Bottom row: score */}

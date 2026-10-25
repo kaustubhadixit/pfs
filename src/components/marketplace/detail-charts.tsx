@@ -142,13 +142,6 @@ export function DetailCharts({
           accent="chart2"
         />
         <StatCard
-          icon={Layers}
-          label="Patent family"
-          value={patent.patentFamilySize ?? "—"}
-          hint={`Field avg. ${FIELD_AVG_FAMILY}`}
-          accent="chart3"
-        />
-        <StatCard
           icon={Hourglass}
           label="Remaining life"
           value={patent.remainingLifeYears != null ? `${patent.remainingLifeYears.toFixed(1)} yrs` : "—"}
@@ -287,33 +280,6 @@ export function DetailCharts({
           </CardContent>
         </Card>
 
-        {/* Patent family comparison */}
-        <Card className="border-border/60">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Layers className="h-4 w-4 text-chart-3" />
-              Patent family size vs. field average
-            </CardTitle>
-            <CardDescription>
-              Family size reflects international coverage of the invention.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-56 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={familyData} layout="vertical" margin={{ left: 0, right: 24, top: 8, bottom: 8 }}>
-                  <CartesianGrid horizontal={false} stroke={COLORS.border} strokeDasharray="3 3" opacity={0.5} />
-                  <XAxis type="number" stroke={COLORS.muted} fontSize={11} tickLine={false} axisLine={false} />
-                  <YAxis type="category" dataKey="name" stroke={COLORS.muted} fontSize={12} tickLine={false} axisLine={false} width={84} />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: "var(--muted)", opacity: 0.4 }} />
-                  <Bar dataKey="value" name="Family size" radius={[0, 6, 6, 0]} isAnimationActive animationDuration={900}>
-                    <LabelList dataKey="value" position="right" className="fill-foreground" style={{ fontSize: 12, fontWeight: 600 }} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Field-of-use category chart — this patent's field in marketplace context */}

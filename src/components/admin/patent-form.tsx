@@ -26,6 +26,7 @@ import {
   LockOpen,
   Info,
   Star,
+  Search,
 } from "lucide-react";
 import type { Patent } from "@prisma/client";
 import { Button } from "@/components/ui/button";
@@ -148,11 +149,56 @@ export function PatentForm({ patent, leadId }: PatentFormProps) {
   const [saving, setSaving] = React.useState<null | "draft" | "publish">(null);
   const [generating, setGenerating] = React.useState(false);
   const [conflictMsg, setConflictMsg] = React.useState<string | null>(null);
+  const [autoPopulateNo, setAutoPopulateNo] = React.useState("");
+  const [autoLoading, setAutoLoading] = React.useState(false);
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
     setErrors((e) => ({ ...e, [key]: "" }));
     setConflictMsg(null);
+  }
+
+  async function autoPopulate() {
+    const pn = autoPopulateNo.trim().toUpperCase();
+    if (!pn) {
+      toast.error("Enter a patent number first");
+      return;
+    }
+    setAutoLoading(true);
+    try {
+      const res = await fetch("/api/admin/patents/autopopulate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patentNumber: pn }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to fetch patent data");
+        return;
+      }
+      // Fill the form with fetched data
+      setForm((f) => ({
+        ...f,
+        patentNumber: data.patentNumber || pn,
+        jurisdiction: data.jurisdiction || f.jurisdiction,
+        applicationNumber: data.applicationNumber || "",
+        title: data.title || "",
+        abstract: data.abstract || "",
+        claims: data.claims || "",
+        description: data.description || "",
+        inventors: Array.isArray(data.inventors) ? data.inventors.join(", ") : "",
+        assignee: data.assignee || "",
+        filingDate: data.filingDate ? data.filingDate.slice(0, 10) : "",
+        grantDate: data.grantDate ? data.grantDate.slice(0, 10) : "",
+        legalStatus: data.legalStatus || "",
+      }));
+      setAutoPopulateNo("");
+      toast.success(`Auto-populated from Google Patents: ${data.title?.slice(0, 40) || pn}`);
+    } catch (e) {
+      toast.error("Failed to fetch — check the patent number and try again");
+    } finally {
+      setAutoLoading(false);
+    }
   }
 
   function validate(): boolean {
@@ -341,6 +387,43 @@ export function PatentForm({ patent, leadId }: PatentFormProps) {
         </div>
       ) : null}
 
+      {/* Auto-populate from Google Patents */}
+      <Card className="border-primary/30 bg-primary/5">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Search className="size-4 text-primary" />
+            Auto-populate from patent number
+          </CardTitle>
+          <CardDescription>
+            Enter any patent number (e.g. US10022792B2, IN201621019586A, WO2020065659A1) — fetches full bibliographic data from Google Patents (free, no key). Fills title, abstract, claims, description, inventors, assignee, dates, and application number automatically.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2">
+            <Input
+              value={autoPopulateNo}
+              onChange={(e) => setAutoPopulateNo(e.target.value)}
+              placeholder="e.g. US10022792B2"
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); autoPopulate(); } }}
+              className="flex-1"
+            />
+            <Button
+              onClick={autoPopulate}
+              disabled={autoLoading}
+              className="gap-1.5"
+            >
+              {autoLoading ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
+              {autoLoading ? "Fetching…" : "Fetch & auto-fill"}
+            </Button>
+          </div>
+          {autoLoading ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Fetching from patents.google.com… (takes 2–5 seconds)
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
           {/* 1. Identity */}
@@ -507,17 +590,7 @@ export function PatentForm({ patent, leadId }: PatentFormProps) {
                     onChange={(e) => set("grantDate", e.target.value)}
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="patentFamilySize">Patent family size</Label>
-                  <Input
-                    id="patentFamilySize"
-                    type="number"
-                    min="0"
-                    value={form.patentFamilySize}
-                    onChange={(e) => set("patentFamilySize", e.target.value)}
-                    placeholder="e.g. 7"
-                  />
-                </div>
+                {/* Family size disabled for now — keeping field in schema for future use */}
               </div>
             </CardContent>
           </Card>

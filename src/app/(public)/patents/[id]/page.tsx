@@ -199,11 +199,6 @@ export default async function PatentDetailPage({
                 label="Inventors"
                 value={inventors.length > 0 ? inventors.join(", ") : "—"}
               />
-              <BibItem
-                icon={Layers}
-                label="Family size"
-                value={patent.patentFamilySize != null ? `${patent.patentFamilySize} ${patent.patentFamilySize === 1 ? "member" : "members"}` : "—"}
-              />
             </div>
           </Reveal>
         </div>
@@ -260,10 +255,6 @@ export default async function PatentDetailPage({
                 />
                 <DefRow label="Market size" value={patent.marketSizeProxy} />
                 <DefRow label="Litigation history" value={patent.litigationHistory} />
-                <DefRow
-                  label="Patent family size"
-                  value={patent.patentFamilySize != null ? String(patent.patentFamilySize) : null}
-                />
               </dl>
             </CardContent>
           </Card>
@@ -314,6 +305,30 @@ export default async function PatentDetailPage({
                 fallback={patent.fieldOfUse}
                 fallbackTitle="Field of use"
               />
+
+              {/* Full abstract — the original raw text from the patent record.
+                  AI summary above is a concise paraphrase; this is the verbatim
+                  abstract as filed with the patent office. */}
+              {patent.abstract ? (
+                <Card className="border-border/60">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      Full abstract
+                    </CardTitle>
+                    <CardDescription>
+                      The original abstract as filed with the patent office.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ScrollArea className="max-h-72">
+                      <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-line">
+                        {patent.abstract}
+                      </p>
+                    </ScrollArea>
+                  </CardContent>
+                </Card>
+              ) : null}
             </TabsContent>
 
             {/* Claims */}
