@@ -28,6 +28,7 @@ interface RealPatent {
   description: string;
   application_number: string;
   legal_status: string;
+  jurisdiction: string;
 }
 
 const REAL_PATENTS: RealPatent[] = JSON.parse(
@@ -167,7 +168,7 @@ async function main() {
       where: {
         patentNumber_jurisdiction: {
           patentNumber: p.publication_number,
-          jurisdiction: "US",
+          jurisdiction: p.jurisdiction || "US",
         },
       },
       update: {
@@ -202,7 +203,7 @@ async function main() {
       },
       create: {
         patentNumber: p.publication_number,
-        jurisdiction: "US",
+        jurisdiction: p.jurisdiction || "US",
         title: p.title,
         abstract: p.abstract || null,
         claims: p.claims || null,
