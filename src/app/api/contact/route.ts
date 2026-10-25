@@ -42,6 +42,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Name, email, and message are required" }, { status: 422 });
     }
 
+    // DPDPA: consent + age declaration required (not implied by submission).
+    const consent = Boolean(body.consent);
+    const ageConfirmed = Boolean(body.ageConfirmed);
+    if (!consent || !ageConfirmed) {
+      return NextResponse.json({ error: "Consent and age confirmation are required" }, { status: 422 });
+    }
+
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || req.headers.get("x-real-ip") || undefined;
 
     await db.contactMessage.create({

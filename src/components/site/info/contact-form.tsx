@@ -3,18 +3,27 @@
 // for patent submissions). Posts to /api/contact, which persists a
 // ContactMessage, sends an acknowledgment + sales notification, and logs
 // analytics. Uses shadcn toast for feedback and resets on success.
+//
+// DPDPA: uses the shared ConsentNotice component (explicit checkbox + age
+// declaration) — not implied consent.
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ConsentNotice, type ConsentState } from "@/components/site/consent-notice";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, CheckCircle2 } from "lucide-react";
+
+const CONTACT_CONSENT_TEXT = `I consent to PatentSale collecting my name, email, and message for the purpose of responding to my inquiry. I have read and agree to the Privacy Policy. I understand I may withdraw consent or request access, correction, or erasure of my data at any time via the Grievance Officer listed in the Privacy Policy.`;
+
+const AGE_TEXT = `I confirm I am 18 years of age or older.`;
 
 type FieldErrors = {
   name?: string;
   email?: string;
   message?: string;
+  consent?: string;
 };
 
 function validateEmail(value: string): boolean {
@@ -27,6 +36,7 @@ export function ContactForm() {
   const [email, setEmail] = React.useState("");
   const [subject, setSubject] = React.useState("");
   const [message, setMessage] = React.useState("");
+  const [consent, setConsent] = React.useState<ConsentState>({ consent: false, ageConfirmed: false });
   const [errors, setErrors] = React.useState<FieldErrors>({});
   const [submitting, setSubmitting] = React.useState(false);
   const [submitted, setSubmitted] = React.useState(false);
@@ -37,6 +47,8 @@ export function ContactForm() {
     if (!email.trim()) next.email = "Please enter your email.";
     else if (!validateEmail(email.trim())) next.email = "Please enter a valid email address.";
     if (!message.trim()) next.message = "Please enter a message.";
+    if (!consent.ageConfirmed) next.consent = "Please confirm you are 18 or older";
+    if (!consent.consent) next.consent = next.consent || "Please provide consent to continue";
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -56,6 +68,9 @@ export function ContactForm() {
           email: email.trim(),
           subject: subject.trim() || undefined,
           message: message.trim(),
+          consent: consent.consent,
+          ageConfirmed: consent.ageConfirmed,
+          consentText: CONTACT_CONSENT_TEXT,
         }),
       });
       if (!res.ok) {
@@ -70,6 +85,7 @@ export function ContactForm() {
       setEmail("");
       setSubject("");
       setMessage("");
+      setConsent({ consent: false, ageConfirmed: false });
       setErrors({});
       setSubmitted(true);
     } catch {
@@ -149,6 +165,15 @@ export function ContactForm() {
         {errors.message ? <p className="text-xs text-destructive">{errors.message}</p> : null}
       </div>
 
+      <ConsentNotice
+        consentText={CONTACT_CONSENT_TEXT}
+        ageText={AGE_TEXT}
+        value={consent}
+        onChange={setConsent}
+        idPrefix="contact"
+        error={errors.consent}
+      />
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Button type="submit" disabled={submitting} className="gap-1.5">
           {submitting ? (
@@ -167,10 +192,6 @@ export function ContactForm() {
           </span>
         ) : null}
       </div>
-      <p className="text-xs text-muted-foreground">
-        By submitting this form you consent to PatentSale processing your details to respond to
-        your inquiry, in line with our Privacy Policy and the DPDPA.
-      </p>
     </form>
   );
 }

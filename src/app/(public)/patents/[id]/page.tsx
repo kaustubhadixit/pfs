@@ -31,6 +31,11 @@ import { InquiryDialog } from "@/components/marketplace/inquiry-dialog";
 import { ReportRequestDialog } from "@/components/marketplace/report-request-dialog";
 import { ListingViewTracker } from "@/components/marketplace/listing-view-tracker";
 
+// Canonical production URL — used to build absolute JSON-LD + OpenGraph URLs.
+// Matches the host used in lib/email.ts + lib/consent.ts + sitemap.ts so the
+// structured data and the rest of the SEO surface agree.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://patentforsale.in";
+
 export async function generateMetadata({
   params,
 }: {
@@ -102,8 +107,53 @@ export default async function PatentDetailPage({
     grantDate: patent.grantDate ? patent.grantDate.toISOString() : null,
   };
 
+  // JSON-LD Product schema — lets search engines (Google rich results,
+  // Bing, etc.) understand this is a listable IP asset with an offer.
+  // Optional fields are only included when we actually have data, so we
+  // never emit `"category": undefined` / `"brand": undefined` keys (the
+  // JSON-LD validator warns on those).
+  const productJsonLd: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: patent.title,
+    description: (patent.summaryAbstract?.trim() || patent.abstract?.trim() || patent.title) as string,
+    url: `${SITE_URL}/patents/${patent.id}`,
+    offers: {
+      "@type": "Offer",
+      priceSpecification: {
+        "@type": "PriceSpecification",
+        price: "Contact for licensing",
+      },
+      // Listings are live and available — InStock is the closest schema.org
+      // value for "actively listed, accepting inquiries".
+      availability: "https://schema.org/InStock",
+      url: `${SITE_URL}/patents/${patent.id}`,
+      seller: {
+        "@type": "Organization",
+        name: "PatentSale",
+        url: SITE_URL,
+      },
+    },
+  };
+  if (patent.fieldOfUse) productJsonLd.category = patent.fieldOfUse;
+  if (patent.assignee) {
+    productJsonLd.brand = { "@type": "Brand", name: patent.assignee };
+  }
+  if (patent.patentNumber) {
+    productJsonLd.sku = patent.patentNumber;
+  }
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 pb-24 sm:px-6 sm:py-10 sm:pb-24 lg:px-8 lg:pb-10">
+      {/* JSON-LD structured data — Product schema. Injected with
+          dangerouslySetInnerHTML because Next.js doesn't ship a built-in
+          JSON-LD component; the schema string is fully controlled by us
+          (no user input) so this is safe. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+      />
+
       <ListingViewTracker patentId={patent.id} />
 
       {/* Breadcrumb */}

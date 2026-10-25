@@ -773,3 +773,62 @@ Work Log:
 Stage Summary:
 - Dark blue theme live. Featured section on home. Stage badges + filter on marketplace + detail + admin. Lead-gen report CTA on detail (modal + sticky mobile). Admin Lead Gen tab (CRM overview). ReportRequest model + API + admin management. Patents list backend-ified (server component). Patent form has stage + featured controls.
 - Committed locally. Push requires fresh PAT (old one was revoked per security warning).
+
+---
+Task ID: 11-a
+Agent: seo-error-loading
+Task: Add sitemap.ts, robots.ts, JSON-LD structured data on patent pages, error.tsx boundaries, and loading.tsx loading states.
+
+Work Log:
+- Read worklog.md (Tasks 1, 7, 8, 9, 10, 10-a/b/c context) + the in-scope files: src/app/(public)/patents/[id]/page.tsx (full read), src/lib/db.ts, src/components/ui/{card,skeleton,button}.tsx, src/app/layout.tsx, src/app/(public)/layout.tsx, src/app/(admin)/admin/layout.tsx, next.config.ts, prisma/schema.prisma Patent model, package.json (Next 16.1.1 / React 19). Confirmed canonical host is https://patentforsale.in (matches lib/email.ts + lib/consent.ts — no NEXT_PUBLIC_SITE_URL env var defined).
+
+- (1) SEO — sitemap.ts (NEW `src/app/sitemap.ts`):
+  • Default-exported async function returning `MetadataRoute.Sitemap` (Next.js Metadata Files convention → emitted at `/sitemap.xml`).
+  • Static pages array: / (priority 1.0, weekly), /patents (0.9, daily), /about /how-it-works /contact /faq /terms /privacy /refund (all 0.5, weekly). The route group `(public)` is invisible in URLs so all are root-relative.
+  • Patent entries: `db.patent.findMany({ where: { published: true }, select: { id, publishedAt, updatedAt }, orderBy: { publishedAt: desc } })`. For each: `{ url: ${SITE_URL}/patents/${id}, lastModified: publishedAt ?? updatedAt, changeFrequency: "daily", priority: 0.8 }`. Sorted by publishedAt desc so fresh listings appear first in XML.
+  • SITE_URL = `process.env.NEXT_PUBLIC_SITE_URL || "https://patentforsale.in"` so production can override via env, but the default matches the deployed canonical host used everywhere else.
+
+- (2) SEO — robots.ts (NEW `src/app/robots.ts`):
+  • Default-exported function returning `MetadataRoute.Robots` → emitted at `/robots.txt`.
+  • One rule: `userAgent: "*", allow: "/", disallow: ["/admin", "/api"]`. Admin routes are server-side auth-gated already, this just keeps them out of the index + avoids wasting crawl budget on auth redirects.
+  • `sitemap: ${SITE_URL}/sitemap.xml` + `host: SITE_URL` so crawlers discover every published patent listing via the sitemap.
+
+- (3) SEO — JSON-LD on patent detail (EDITED `src/app/(public)/patents/[id]/page.tsx`):
+  • Added top-of-file `SITE_URL` constant matching sitemap/robots.
+  • Built a `productJsonLd` object AFTER the patent record is fetched + validated: `@context: schema.org`, `@type: "Product"`, `name: patent.title`, `description: summaryAbstract || abstract || title`, `url: canonical`, `offers: { @type: "Offer", priceSpecification: { @type: "PriceSpecification", price: "Contact for licensing" }, availability: https://schema.org/InStock, url, seller: { @type: "Organization", name: "PatentSale", url: SITE_URL } }`.
+  • Conditionally adds `category` (fieldOfUse), `brand` ({ @type: "Brand", name: assignee }), and `sku` (patentNumber) ONLY when the source field is non-null — avoids emitting `"category": undefined` keys (JSON-LD validators warn on those).
+  • Injected via `<script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />` placed at the top of the page wrapper (before ListingViewTracker + Breadcrumb). Schema string is fully server-controlled (no user input) so this is safe.
+
+- (4) Error boundaries — error.tsx (NEW `src/app/error.tsx` + `src/app/(public)/error.tsx`):
+  • Both are `"use client"` components (required for Next.js error boundaries — the recovery flow needs the client runtime to mount the reset UI + re-run the errored segment on `reset()`).
+  • Both accept `{ error: Error & { digest?: string }, reset: () => void }` and:
+    – `React.useEffect` to `console.error` the caught error so the support team has a client-side paper trail.
+    – Premium dark-blue recovery card using shadcn `Card`/`CardHeader`/`CardContent` with `border-primary/30` + `bg-gradient-to-br from-primary/5 via-card to-card` + a decorative radial `bg-primary/10 blur-3xl` accent. TriangleAlert lucide icon in a `bg-primary/10 ring-1 ring-primary/20` circle. CardTitle "Something went wrong" (root) / "We hit a snag" (public), CardDescription friendly + non-blaming.
+    – Primary CTA: "Try again" Button (size lg, full width, RefreshCw icon) → `onClick={() => reset()}` re-attempts the failed render.
+    – Secondary CTAs: outline + ghost buttons linking to Home / Marketplace / Support (lucide icons Home / Store / LifeBuoy). Root variant has 2 secondary buttons (Home + Contact support); public variant has 3 (Marketplace + Home + Support) since a logged-out visitor's highest-value surface is the marketplace.
+    – Dev-only error detail block (`process.env.NODE_ENV !== "production"`) showing `error.message`, `error.digest`, and a truncated `error.stack` — hidden in prod to avoid leaking internals.
+  • Root error.tsx uses `min-h-screen` (full viewport — replaces whatever the errored page would have rendered within the root layout) and the (public) layout's Navbar/Footer are preserved when its error.tsx fires (min-h-[60vh], max-w-2xl, centered).
+
+- (5) Loading states — loading.tsx (NEW ×3):
+  • `src/app/(public)/patents/loading.tsx` (marketplace): server component (no client JS shipped — all animation is pure CSS via the Skeleton component's `animate-pulse`). Mirrors the real page layout (max-w-7xl wrapper + page header skeleton (badge pill, h1, two text lines, count pill) + filter bar skeleton (5 chips of varying widths) + 6-card grid + pagination skeleton). Each SkeletonCard mirrors <PatentCard>: jurisdiction+stage pills row, two-line title, three-line summary + AI label, claims+field lines, metrics row, score block (label + assignee text + circular score gauge shape). 6 cards = one full marketplace page so no shift when real cards swap in.
+  • `src/app/(public)/patents/[id]/loading.tsx` (patent detail): server component. Mirrors the detail page's `grid lg:grid-cols-[1fr_320px]` layout: breadcrumb skeleton + back button skeleton + full-width header (badges row, two-line title, assignee, quick actions row, 4-col bib strip) + right rail (sticky on desktop, `hidden lg:block` — score card with circular gauge + 2 metadata rows + readiness inputs card with 5 dl rows) + main column (4-col tab list + 3 summary cards with header rows + 2 CTA cards). Layout matches `lg:grid-cols-[1fr_320px] lg:gap-10` so the columns align when the real content renders.
+  • `src/app/(admin)/admin/loading.tsx` (admin): server component. Per task spec — a SIMPLE spinner (not skeletons), no sidebar. Centered Loader2 (`animate-spin`) in a `bg-primary/10 ring-1 ring-primary/20` circle, with "Loading admin…" caption + "Preparing your dashboard." subtext, on the same dark-blue gradient backdrop as the error boundaries for visual continuity. The admin layout's `getServerSession` + `AdminShell` must finish rendering before this loading UI shows; rendering no chrome here avoids duplicating AdminShell when the layout is already on the page (sub-route navigation).
+
+- Constraints respected: no git commands; no `npm run dev`; no `db:push`. No edits to prisma/, src/lib/, src/app/api/*, src/app/layout.tsx, src/app/globals.css, src/components/site/*, src/components/marketplace/*, src/components/admin/*, or src/app/(admin)/* (other than creating admin/loading.tsx which the task explicitly authorized). The one existing-file edit is `src/app/(public)/patents/[id]/page.tsx` to add JSON-LD — explicitly authorized by the task.
+
+Verification:
+- `npm run lint` — clean (exit 0, 0 errors, 0 warnings). Two warnings originally flagged ("Unused eslint-disable directive" for the no-console rule) were removed; lint is now silent.
+- `npx tsc --noEmit` — no errors in any of the new/edited files in scope (`src/app/sitemap.ts`, `src/app/robots.ts`, `src/app/error.tsx`, `src/app/(public)/error.tsx`, `src/app/(public)/patents/loading.tsx`, `src/app/(public)/patents/[id]/loading.tsx`, `src/app/(admin)/admin/loading.tsx`, `src/app/(public)/patents/[id]/page.tsx`). The remaining tsc errors are pre-existing + OUT OF SCOPE: `examples/websocket/*` (missing socket.io modules), `prisma/seed-real-iit-patents.ts` (regex target), `prisma/seed.ts(492,21)` (REAL_PATENTS array doesn't set stage — flagged in Task 10-c too), `skills/*` (image-edit + stock-analysis skill scripts). None were introduced or touched here.
+
+Stage Summary:
+- Files created (7):
+  • `src/app/sitemap.ts` — `/sitemap.xml` with 9 static pages + N published patent entries; priorities 1.0/0.9/0.8/0.5; changeFrequency weekly/daily.
+  • `src/app/robots.ts` — `/robots.txt` allowing all + disallowing /admin + /api, pointing to sitemap.
+  • `src/app/error.tsx` — root error boundary (client component, premium Card UI, Try again + Home + Support).
+  • `src/app/(public)/error.tsx` — public-route error boundary (client, Try again + Marketplace + Home + Support, dev-only error detail block).
+  • `src/app/(public)/patents/loading.tsx` — marketplace skeleton (header + filter bar + 6-card grid + pagination).
+  • `src/app/(public)/patents/[id]/loading.tsx` — patent detail skeleton (header + right rail score card + readiness inputs + main column tabs + summary cards + CTAs).
+  • `src/app/(admin)/admin/loading.tsx` — admin loading spinner (no chrome, premium dark-blue radial backdrop).
+- Files edited (1):
+  • `src/app/(public)/patents/[id]/page.tsx` — added `SITE_URL` constant + `productJsonLd` object + `<script type="application/ld+json">` injection at the top of the page wrapper. JSON-LD Product schema with name / description / url / offers (PriceSpecification "Contact for licensing") + conditional category (fieldOfUse) / brand (Brand/assignee) / sku (patentNumber).
+- SEO surface now complete: sitemap.xml + robots.txt + per-patent JSON-LD Product schema (rich-result-eligible). Error + loading UX uses the dark-blue premium language already established in Tasks 1 + 10.
