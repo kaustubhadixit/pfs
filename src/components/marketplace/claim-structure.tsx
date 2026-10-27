@@ -79,16 +79,23 @@ function ClaimTreeView({
   depth,
   expandedSet,
   toggle,
+  textExpandedSet,
+  toggleText,
 }: {
   node: ClaimNode;
   depth: number;
   expandedSet: Set<number>;
   toggle: (n: number) => void;
+  textExpandedSet: Set<number>;
+  toggleText: (n: number) => void;
 }) {
   const reduce = useReducedMotion();
   const hasChildren = node.children.length > 0;
   const expanded = expandedSet.has(node.number);
-  const preview = node.text.length > 120 ? node.text.slice(0, 120).trimEnd() + "…" : node.text;
+  const textExpanded = textExpandedSet.has(node.number);
+  const isLong = node.text.length > 120;
+  const preview = isLong ? node.text.slice(0, 120).trimEnd() + "…" : node.text;
+  const hiddenChars = node.text.length - 120;
 
   return (
     <div className="relative">
@@ -100,7 +107,8 @@ function ClaimTreeView({
           <button
             onClick={() => toggle(node.number)}
             className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label={expanded ? "Collapse claim" : "Expand claim"}
+            aria-label={expanded ? "Collapse child claims" : "Expand child claims"}
+            aria-expanded={expanded}
           >
             <ChevronRight
               className={cn("h-3.5 w-3.5 transition-transform", expanded && "rotate-90")}
@@ -120,9 +128,30 @@ function ClaimTreeView({
         </Badge>
 
         <div className="min-w-0 flex-1">
-          <p className="text-sm leading-relaxed text-foreground/90">
-            <span className="text-muted-foreground">{preview}</span>
-          </p>
+          {/* Click the claim text to toggle full text on long claims.
+              Short claims (≤120 chars) render in full and are not clickable. */}
+          {isLong ? (
+            <button
+              type="button"
+              onClick={() => toggleText(node.number)}
+              className="block w-full cursor-pointer text-left text-sm leading-relaxed text-foreground/90 transition-colors hover:text-foreground"
+              aria-expanded={textExpanded}
+              aria-label={textExpanded ? "Show truncated claim" : "Show full claim text"}
+            >
+              <span className={cn("text-muted-foreground", textExpanded && "text-foreground/90")}>
+                {textExpanded ? node.text : preview}
+              </span>
+              <span className="ml-1.5 inline-flex items-center whitespace-nowrap text-[10px] font-medium text-primary/70 group-hover:text-primary">
+                {textExpanded
+                  ? "← show less"
+                  : `+${hiddenChars} more chars`}
+              </span>
+            </button>
+          ) : (
+            <p className="text-sm leading-relaxed text-foreground/90">
+              <span className="text-muted-foreground">{node.text}</span>
+            </p>
+          )}
           {node.parent != null ? (
             <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-muted-foreground/70">
               <GitBranch className="h-2.5 w-2.5" />
@@ -152,6 +181,8 @@ function ClaimTreeView({
                     depth={depth + 1}
                     expandedSet={expandedSet}
                     toggle={toggle}
+                    textExpandedSet={textExpandedSet}
+                    toggleText={toggleText}
                   />
                 ))}
             </motion.div>
@@ -166,6 +197,7 @@ export function ClaimStructure({ claims }: { claims: string | null | undefined }
   const parsed = React.useMemo(() => (claims ? parseClaims(claims) : []), [claims]);
   const forest = React.useMemo(() => buildForest(parsed), [parsed]);
 
+  // expandedSet: which claim NODES have their children visible (tree expansion).
   // Default: expand all top-level (independent) claims; collapse dependents.
   const [expandedSet, setExpandedSet] = React.useState<Set<number>>(() => {
     const s = new Set<number>();
@@ -173,15 +205,32 @@ export function ClaimStructure({ claims }: { claims: string | null | undefined }
     return s;
   });
 
+  // textExpandedSet: which claim nodes have their FULL text visible (vs the
+  // 120-char preview). Default: empty (all previews collapsed) so the tree
+  // stays scannable; user clicks a claim to read its full text.
+  const [textExpandedSet, setTextExpandedSet] = React.useState<Set<number>>(
+    () => new Set<number>(),
+  );
+
   // Reset when claims change.
   React.useEffect(() => {
     const s = new Set<number>();
     forest.forEach((r) => s.add(r.number));
     setExpandedSet(s);
+    setTextExpandedSet(new Set());
   }, [forest]);
 
   const toggle = (n: number) => {
     setExpandedSet((prev) => {
+      const next = new Set(prev);
+      if (next.has(n)) next.delete(n);
+      else next.add(n);
+      return next;
+    });
+  };
+
+  const toggleText = (n: number) => {
+    setTextExpandedSet((prev) => {
       const next = new Set(prev);
       if (next.has(n)) next.delete(n);
       else next.add(n);
@@ -195,6 +244,19 @@ export function ClaimStructure({ claims }: { claims: string | null | undefined }
     setExpandedSet(s);
   };
   const collapseAll = () => setExpandedSet(new Set());
+
+  // Long claims = any claim whose text exceeds the 120-char preview threshold.
+  const longClaimCount = parsed.filter((c) => c.text.length > 120).length;
+  const allTextExpanded =
+    longClaimCount > 0 && parsed.every((c) => c.text.length <= 120 || textExpandedSet.has(c.number));
+  const expandAllText = () => {
+    const s = new Set<number>();
+    parsed.forEach((c) => {
+      if (c.text.length > 120) s.add(c.number);
+    });
+    setTextExpandedSet(s);
+  };
+  const collapseAllText = () => setTextExpandedSet(new Set());
 
   if (!claims || !claims.trim()) {
     return (
@@ -236,13 +298,23 @@ export function ClaimStructure({ claims }: { claims: string | null | undefined }
           </Badge>
           <Badge variant="outline">{parsed.length} total</Badge>
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           <Button variant="ghost" size="sm" onClick={expandAll} className="h-7 text-xs">
-            Expand all
+            Expand tree
           </Button>
           <Button variant="ghost" size="sm" onClick={collapseAll} className="h-7 text-xs">
-            Collapse all
+            Collapse tree
           </Button>
+          {longClaimCount > 0 ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={allTextExpanded ? collapseAllText : expandAllText}
+              className="h-7 text-xs"
+            >
+              {allTextExpanded ? "Collapse text" : "Expand text"}
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -256,6 +328,8 @@ export function ClaimStructure({ claims }: { claims: string | null | undefined }
               depth={0}
               expandedSet={expandedSet}
               toggle={toggle}
+              textExpandedSet={textExpandedSet}
+              toggleText={toggleText}
             />
           ))}
       </div>
