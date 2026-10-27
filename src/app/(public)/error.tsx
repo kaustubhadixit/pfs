@@ -30,6 +30,37 @@ export default function PublicError({
 }) {
   React.useEffect(() => {
     console.error("[PatentSale] Public error boundary caught:", error);
+
+    // Auto-recover from ChunkLoadError. This fires when the browser is holding
+    // a stale build manifest (e.g. dev server was restarted, a new deploy
+    // shipped, or HMR swapped a chunk hash) and tries to fetch a chunk that
+    // no longer exists. Calling `reset()` won't help — the chunk URL is
+    // baked into the loaded HTML — so the only real fix is a hard reload to
+    // pull a fresh manifest. Guard against an infinite reload loop using a
+    // sessionStorage counter (cleared on tab close, so the next visit starts
+    // fresh).
+    const isChunkLoadError =
+      error?.name === "ChunkLoadError" ||
+      /Failed to load chunk|Loading chunk|Loading CSS chunk/i.test(
+        error?.message || "",
+      );
+    if (isChunkLoadError) {
+      try {
+        // Timestamp-based throttle instead of a counter: allows a reload for
+        // EACH genuine ChunkLoadError, but prevents an infinite loop if the
+        // reloaded page ALSO throws (e.g. dev server is fully down). 10s
+        // window is enough for a fresh manifest to be served after a restart.
+        const key = "ps_chunk_reload_ts";
+        const last = Number(sessionStorage.getItem(key) || "0");
+        const now = Date.now();
+        if (now - last > 10_000) {
+          sessionStorage.setItem(key, String(now));
+          window.location.reload();
+        }
+      } catch {
+        // sessionStorage may be unavailable (private mode) — swallow.
+      }
+    }
   }, [error]);
 
   const isDev = process.env.NODE_ENV !== "production";

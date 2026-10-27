@@ -50,6 +50,14 @@ export function AnalyticsTracker() {
     if (pathname?.startsWith("/admin")) return;
     if (pathname?.startsWith("/api")) return;
     track("page_view");
+    // Successful page mount → clear the ChunkLoadError reload-throttle timestamp
+    // so a FUTURE chunk error in this same tab gets a fresh reload window.
+    // (Mirrors the sessionStorage key used in src/app/(public)/error.tsx.)
+    try {
+      sessionStorage.removeItem("ps_chunk_reload_ts");
+    } catch {
+      // private mode / disabled storage — ignore
+    }
   }, [pathname]);
   return null;
 }
