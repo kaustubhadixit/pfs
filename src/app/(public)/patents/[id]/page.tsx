@@ -10,6 +10,7 @@ import Link from "next/link";
 import {
   ChevronRight, Sparkles, Scale, Calendar, CalendarClock, Users, Building2,
   FileText, ClipboardList, BarChart3, ArrowLeft, Layers, Star, TrendingUp,
+  ScrollText,
 } from "lucide-react";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
@@ -323,10 +324,14 @@ export default async function PatentDetailPage({
 
           {/* Tabs */}
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 sm:w-auto">
+            <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 sm:w-auto">
               <TabsTrigger value="overview" className="gap-1.5">
-                <FileText className="h-3.5 w-3.5" />
+                <Layers className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Overview</span>
+              </TabsTrigger>
+              <TabsTrigger value="abstract" className="gap-1.5">
+                <ScrollText className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Abstract</span>
               </TabsTrigger>
               <TabsTrigger value="claims" className="gap-1.5">
                 <Scale className="h-3.5 w-3.5" />
@@ -362,30 +367,39 @@ export default async function PatentDetailPage({
                 fallback={patent.fieldOfUse}
                 fallbackTitle="Field of use"
               />
+            </TabsContent>
 
-              {/* Full abstract — the original raw text from the patent record.
-                  AI summary above is a concise paraphrase; this is the verbatim
-                  abstract as filed with the patent office. */}
+            {/* Abstract — the verbatim abstract as filed with the patent
+                office. Previously collapsed inside the Overview tab; promoted
+                to its own top-level tab so buyers can read the full, uncut
+                abstract without scrolling past AI-summary cards. */}
+            <TabsContent value="abstract" className="mt-6">
               {patent.abstract ? (
                 <Card className="border-border/60">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-base">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      <ScrollText className="h-4 w-4 text-muted-foreground" />
                       Full abstract
                     </CardTitle>
                     <CardDescription>
-                      The original abstract as filed with the patent office.
+                      The original abstract as filed with the patent office —
+                      verbatim and uncut.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <ScrollArea className="max-h-72">
+                    <ScrollArea className="max-h-[32rem]">
                       <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-line">
                         {patent.abstract}
                       </p>
                     </ScrollArea>
                   </CardContent>
                 </Card>
-              ) : null}
+              ) : (
+                <div className="rounded-lg border border-dashed border-border/60 p-10 text-center text-sm text-muted-foreground">
+                  <ScrollText className="mx-auto mb-2 h-6 w-6 opacity-50" />
+                  No abstract available for this listing.
+                </div>
+              )}
             </TabsContent>
 
             {/* Claims */}
