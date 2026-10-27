@@ -26,7 +26,14 @@ import { ScoreGauge } from "@/components/site/score-gauge";
 import { formatDate, parseInventors, scoreColor, scoreLabel, truncate } from "@/lib/format";
 import { stageBadgeClass, stageLabel } from "@/lib/stages";
 import { ClaimStructure } from "@/components/marketplace/claim-structure";
-import { DetailCharts, type DetailPatent } from "@/components/marketplace/detail-charts";
+// Lazy-load DetailCharts via a thin client wrapper so the heavy recharts/d3
+// dependency tree is NOT pulled into the route's initial module graph.
+// Without this, the first visit to any /patents/[id] page pays a ~4.7s
+// dev-compile cost (recharts source). With this, the page HTML renders in
+// ~300ms and the chart bundle hydrates async only when the user opens the
+// Visuals tab. Type-only import is erased at compile time.
+import DetailChartsLazy from "@/components/marketplace/detail-charts-lazy";
+import type { DetailPatent } from "@/components/marketplace/detail-charts";
 import { InquiryDialog } from "@/components/marketplace/inquiry-dialog";
 import { ReportRequestDialog } from "@/components/marketplace/report-request-dialog";
 import { ListingViewTracker } from "@/components/marketplace/listing-view-tracker";
@@ -425,7 +432,7 @@ export default async function PatentDetailPage({
 
             {/* Visuals */}
             <TabsContent value="visuals" className="mt-6">
-              <DetailCharts patent={detailPatent} fieldDistribution={fieldDistribution} />
+              <DetailChartsLazy patent={detailPatent} fieldDistribution={fieldDistribution} />
             </TabsContent>
           </Tabs>
 

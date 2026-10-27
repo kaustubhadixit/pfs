@@ -8,6 +8,12 @@ const nextConfig: NextConfig = {
   // dev it forces extra graph analysis that slows compiles.
   output: isProd ? "standalone" : undefined,
   reactStrictMode: true,
+  // Allow the sandbox preview gateway (and any *.space-z.ai preview host) to
+  // hit /_next/* HMR + asset resources without Next.js blocking/throttling the
+  // request as a "cross-origin" attempt. Without this, every HMR ping from the
+  // preview panel logs a warning and can stall Fast Refresh, making the app
+  // feel slow. Dev-only concern; no production impact.
+  allowedDevOrigins: ["*.space-z.ai", "localhost", "127.0.0.1", "0.0.0.0"],
   // Security headers — applied to all routes.
   async headers() {
     return [
